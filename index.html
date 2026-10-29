@@ -1338,16 +1338,19 @@ function buildIntro() {
   const r = size * .088, gap = size * .045, total = len + gap + r * 2;
   const x0 = (W - total) / 2, base = H / 2 + size * .36;
   const cx = x0 + len + gap + r, cy = base - r;
+  // 모바일 사파리에서 거대한 좌표의 마스크가 깨지는 문제가 있어 화면 크기 범위로 제한
+  const X = -W, Y = -H, MW = W * 3, MH = H * 3;
   introSvg.innerHTML = `
-    <defs><mask id="introHole" maskUnits="userSpaceOnUse" x="-1e5" y="-1e5" width="2e5" height="2e5">
-      <rect x="-1e5" y="-1e5" width="2e5" height="2e5" fill="#fff"/>
+    <defs><mask id="introHole" maskUnits="userSpaceOnUse" maskContentUnits="userSpaceOnUse" x="${X}" y="${Y}" width="${MW}" height="${MH}">
+      <rect x="${X}" y="${Y}" width="${MW}" height="${MH}" fill="#fff"/>
       <circle cx="${cx}" cy="${cy}" r="${r}" fill="#000"/>
     </mask></defs>
     <g mask="url(#introHole)">
-      <rect x="-1e5" y="-1e5" width="2e5" height="2e5" fill="#fff"/>
+      <rect x="${X}" y="${Y}" width="${MW}" height="${MH}" fill="#fff"/>
       <text x="${x0}" y="${base}" font-family="Inter Tight, system-ui, sans-serif" font-weight="600" font-size="${size}"
         letter-spacing="${-size * .055}" fill="#0a0a0a">${INTRO.word}</text>
-    </g>`;
+    </g>
+    <circle id="introDot" cx="${cx}" cy="${cy}" r="${r}" fill="#0a0a0a"/>`;   /* 마침표: 처음엔 검은 점, 확대되며 투명해져 그 안의 공간이 드러남 */
   introSvg.style.transformOrigin = `${cx}px ${cy}px`;
   // 마침표가 화면 대각선을 다 덮을 만큼 확대
   intro.geo = { cx, cy, r, max: Math.hypot(W, H) / r * 1.15 };
@@ -1378,6 +1381,7 @@ function stepIntro(dt) {
   const k = Math.min(1, e * 1.4);                                     // 확대되며 마침표가 화면 가운데로
   introSvg.style.transform = `translate(${(view.ww / 2 - g.cx) * k}px, ${(view.wh / 2 - g.cy) * k}px) scale(${s})`;
   introEl.querySelector(".hint").style.opacity = 1 - Math.min(1, intro.p * 8);
+  const dot = document.getElementById("introDot"); if (dot) dot.style.opacity = 1 - clamp((intro.p - .04) / .22, 0, 1);
   introEl.querySelector(".corner").style.opacity = 1 - clamp((intro.p - .55) / .35, 0, 1);   // 거의 다 들어갈 때까지 남아 있다가 사라짐
   // 마침표 너머 공간도 같이 다가옴 (뒤에서 앞으로)
   canvas.style.transform = `scale(${1 + .5 * (1 - e)})`;
