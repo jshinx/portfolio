@@ -1328,14 +1328,14 @@ function buildIntro() {
   introSvg.setAttribute("viewBox", `0 0 ${W} ${H}`);
   introSvg.innerHTML = "";
   const size = Math.min(W * .175, H * .34);
-  // 글자 폭을 재서 가운데 정렬 (마침표 포함)
-  const probe = document.createElementNS(NS, "text");
-  probe.setAttribute("font-family", "Inter Tight, system-ui, sans-serif"); probe.setAttribute("font-weight", "600");
-  probe.setAttribute("font-size", size); probe.setAttribute("letter-spacing", -size * .055); probe.textContent = INTRO.word;
-  introSvg.appendChild(probe);
-  const len = probe.getComputedTextLength();
-  introSvg.removeChild(probe);
-  const r = size * .088, gap = size * .045, total = len + gap + r * 2;
+  // 글자 위치를 직접 계산 (브라우저마다 letter-spacing 처리가 달라 마침표 간격이 벌어지는 문제 방지)
+  const mctx = document.createElement("canvas").getContext("2d");
+  mctx.font = `600 ${size}px "Inter Tight", system-ui, sans-serif`;
+  const track = -size * .055, xs = [];
+  let acc = 0;
+  for (const ch of INTRO.word) { xs.push(acc); acc += mctx.measureText(ch).width + track; }
+  const len = acc - track;                                            // 마지막 글자 뒤 간격은 제외
+  const r = size * .088, gap = size * .035, total = len + gap + r * 2;
   const x0 = (W - total) / 2, base = H / 2 + size * .36;
   const cx = x0 + len + gap + r, cy = base - r;
   // 모바일 사파리에서 거대한 좌표의 마스크가 깨지는 문제가 있어 화면 크기 범위로 제한
@@ -1347,8 +1347,8 @@ function buildIntro() {
     </mask></defs>
     <g mask="url(#introHole)">
       <rect x="${X}" y="${Y}" width="${MW}" height="${MH}" fill="#fff"/>
-      <text x="${x0}" y="${base}" font-family="Inter Tight, system-ui, sans-serif" font-weight="600" font-size="${size}"
-        letter-spacing="${-size * .055}" fill="#0a0a0a">${INTRO.word}</text>
+      <text x="${xs.map(v => (x0 + v).toFixed(2)).join(" ")}" y="${base}" font-family="Inter Tight, system-ui, sans-serif" font-weight="600" font-size="${size}"
+        fill="#0a0a0a">${INTRO.word}</text>
     </g>
     <circle id="introDot" cx="${cx}" cy="${cy}" r="${r}" fill="#0a0a0a"/>`;   /* 마침표: 처음엔 검은 점, 확대되며 투명해져 그 안의 공간이 드러남 */
   introSvg.style.transformOrigin = `${cx}px ${cy}px`;
@@ -1468,6 +1468,7 @@ Promise.race([
   buildTextures();
   tween(state, "floorA", FLOOR.alpha, { dur: 1.5, e: ease.power2Out, delay: .3 });
   buildIntro(); document.getElementById("chrome").classList.add("hide-nav");
+  document.fonts.ready.then(() => { if (!intro.done) buildIntro(); });   // 글꼴이 늦게 로드돼도 간격 다시 맞춤
   document.getElementById("loader").classList.add("hide");
   requestAnimationFrame(tick);
 });
