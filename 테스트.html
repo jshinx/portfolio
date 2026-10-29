@@ -1,0 +1,1472 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Portfolio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;800&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+<style>
+  :root { --bg:#000; --fg:#fff; --pad-x:50px; --pad-y:25px; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html, body { height:100%; background:var(--bg); color:var(--fg); overflow:hidden; }
+  body { font-family:"Inter Tight", system-ui, sans-serif; -webkit-font-smoothing:antialiased; overscroll-behavior:none; }
+  html.grabbable, html.grabbable * { cursor:grab; }
+  html.grabbing, html.grabbing * { cursor:grabbing !important; user-select:none; }
+
+  #gl { position:fixed; inset:0; width:100%; height:100%; display:block; z-index:0; touch-action:none; }
+
+  /* 라벨 (레퍼런스: 10px 대문자) */
+  .label { font-size:10px; line-height:1; font-weight:500; letter-spacing:.02em; text-transform:uppercase; }
+  button, a { color:inherit; background:none; border:0; font:inherit; text-decoration:none; cursor:pointer; }
+
+  /* ---------- 홈: 카드 트랙 (DOM이 레이아웃·히트테스트, WebGL이 그림) ---------- */
+  #track {
+    position:fixed; left:0; right:0; top:50%; transform:translateY(-50%);
+    display:flex; gap:7px; height:43.5svh; max-height:55rem; z-index:1;
+  }
+  #track { visibility:hidden; pointer-events:none; }   /* 크기 측정용 (그림은 WebGL 원통) */
+  #track article { position:relative; height:100%; flex:none; border-radius:20px; opacity:0; }
+
+  /* ---------- 고정 UI ---------- */
+  .chrome { position:fixed; inset:0; z-index:30; pointer-events:none; }
+  .chrome > * { position:absolute; pointer-events:auto; }
+  .chrome .tl { top:var(--pad-y); left:var(--pad-x); }
+  .chrome .tr { top:var(--pad-y); right:var(--pad-x); }
+  /* 이름 · 프로필: 크게 */
+  /* 이름 · 프로필: 크고 또렷하게 */
+  .chrome .tl, .chrome .tr { text-transform:none; color:#fff; font-size:22px; font-weight:600; letter-spacing:-.03em; line-height:1; top:calc(var(--pad-y) + 6px); }
+  .chrome .bl, .chrome .br { font-size:11px; }
+  .chrome .bl { bottom:var(--pad-y); left:var(--pad-x); display:flex; gap:4px; }
+  .chrome .br { bottom:var(--pad-y); right:var(--pad-x); }
+  /* 줄마다 붙는 카테고리 이름 (위치는 JS가 매 프레임 줄에 맞춰 이동) */
+  /* 카테고리 제목: 점 없이 큰 글씨 + 작은 작업 수 */
+  .rowlabel { top:0; left:0; display:flex; align-items:flex-start; gap:5px; pointer-events:auto; cursor:pointer;
+    font-size:22px; line-height:1; font-weight:500; letter-spacing:-.03em; text-transform:none; transition:opacity .4s; will-change:transform; }
+  .rowlabel sup { font-size:11px; font-weight:500; letter-spacing:0; opacity:.5; margin-top:1px; }
+  .rowlabel.dim { opacity:.4; }
+  .rowlabel:hover { opacity:1; }
+  @media (max-width:800px) { .rowlabel { font-size:18px; } .chrome .tl, .chrome .tr { font-size:19px; } }
+  .chrome a, .chrome button { transition:opacity .3s ease-out; }
+  .chrome .mode a { position:relative; }
+  .chrome a::before, .chrome button::before { content:""; position:absolute; inset:-15px; }
+  .chrome a:hover, .chrome button:hover { opacity:1; }
+  /* 이름 · 프로필: 흐려지는 대신, 마우스를 올리면 아래에 밑줄이 왼쪽에서 오른쪽으로 그어짐 */
+  .chrome .tl::after, .chrome .tr::after { content:""; position:absolute; left:0; right:0; bottom:-6px; height:2px; background:currentColor;
+    transform:scaleX(0); transform-origin:right; transition:transform .45s cubic-bezier(.16,1,.3,1); }
+  .chrome .tl:hover::after, .chrome .tr:hover::after, .chrome .tr[aria-expanded="true"]::after { transform:scaleX(1); transform-origin:left; }
+  .chrome .tl:focus, .chrome .tr:focus { outline:none; }
+  .chrome .tl:focus-visible, .chrome .tr:focus-visible { outline:1px solid #fff; outline-offset:6px; }
+  .chrome .tl, .chrome .tr { -webkit-tap-highlight-color:transparent; }
+  .mode .off { opacity:.5; }
+  .chrome.hide-nav > * { opacity:0; pointer-events:none; transition:opacity .4s; }
+  .chrome.in-profile .rowlabel { opacity:0 !important; pointer-events:none; }
+
+  /* ---------- 프로필 (가로로 넓은 타원 블랙홀 안쪽) ---------- */
+  #disc {
+    position:fixed; left:50%; top:50%; width:min(1120px, 92vw); height:min(640px, 80vh); transform:translate(-50%,-50%);
+    z-index:25; pointer-events:none; border-radius:50%;
+  }
+  #disc .inner {
+    position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:72%;
+    display:flex; flex-direction:column; align-items:stretch; color:#fff;
+  }
+  #disc .head { display:flex; align-items:baseline; justify-content:center; gap:14px; }
+  #disc .head h2 { font-size:30px; font-weight:600; letter-spacing:-.035em; line-height:1; }
+  #disc .head span { font-size:15px; font-weight:500; opacity:.45; letter-spacing:-.01em; }
+  #disc .lede { margin:14px auto 0; max-width:34rem; text-align:center; font-size:14px; line-height:1.45; letter-spacing:-.015em; color:rgba(255,255,255,.72); }
+  #disc .cols { display:grid; grid-template-columns:1.55fr 1fr 1.15fr; gap:0 38px; margin-top:34px; padding-top:22px; border-top:1px solid rgba(255,255,255,.14); }
+  #disc h3 { font-size:10px; font-weight:500; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,255,255,.45); margin-bottom:14px; }
+  #disc .item { display:grid; grid-template-columns:62px 1fr; gap:0 12px; margin-bottom:13px; }
+  #disc .item:last-child { margin-bottom:0; }
+  #disc .yr { font-size:11px; line-height:1.55; color:rgba(255,255,255,.45); font-variant-numeric:tabular-nums; letter-spacing:.01em; padding-top:1px; }
+  #disc .org { font-size:14px; font-weight:500; line-height:1.3; letter-spacing:-.015em; }
+  #disc .org em { font-style:normal; font-weight:400; color:rgba(255,255,255,.5); }
+  #disc .desc { font-size:12px; line-height:1.45; color:rgba(255,255,255,.62); margin-top:3px; letter-spacing:-.005em; }
+  #disc .clients { list-style:none; display:flex; flex-direction:column; gap:7px; }
+  #disc .clients li { font-size:17px; font-weight:500; letter-spacing:-.03em; line-height:1.1; }
+  #disc .clients li small { font-size:10px; font-weight:500; letter-spacing:.08em; text-transform:uppercase; color:rgba(255,255,255,.4); margin-left:6px; vertical-align:2px; }
+  #disc .foot { display:flex; justify-content:center; gap:22px; margin-top:30px; font-size:10px; font-weight:500; letter-spacing:.12em; text-transform:uppercase; color:rgba(255,255,255,.55); }
+  #disc .foot a { color:#fff; }
+  #disc .fade { opacity:0; transform:translateY(10px); transition:opacity .7s cubic-bezier(.16,1,.3,1), transform .9s cubic-bezier(.16,1,.3,1); }
+  #disc.open { pointer-events:auto; }
+  #disc.open .fade { opacity:1; transform:none; }
+  #disc.open .fade:nth-child(2) { transition-delay:.05s; }
+  #disc.open .fade:nth-child(3) { transition-delay:.1s; }
+  #disc.open .fade:nth-child(4) { transition-delay:.15s; }
+  #disc .cols > div { opacity:0; transform:translateY(12px); transition:opacity .7s, transform .9s cubic-bezier(.16,1,.3,1); }
+  #disc.open .cols > div { opacity:1; transform:none; }
+  #disc.open .cols > div:nth-child(1) { transition-delay:.12s; } #disc.open .cols > div:nth-child(2) { transition-delay:.18s; } #disc.open .cols > div:nth-child(3) { transition-delay:.24s; }
+  #disc a:hover { opacity:.6; }
+
+  /* ---------- 프로젝트 시트 (흰 배경은 WebGL이 그림, DOM은 내용만) ---------- */
+  #sheet {
+    position:fixed; top:20px; bottom:20px; left:50px; right:50px; z-index:20;
+    display:flex; gap:40px; padding:24px 72px 0 24px; color:#000; pointer-events:none; visibility:hidden;
+  }
+  #sheet.open { visibility:visible; pointer-events:auto; }
+  #sheet .info { flex:1; min-width:0; }
+  #sheet h1 { font-size:45px; font-weight:400; line-height:1; letter-spacing:-.05em; white-space:nowrap; }
+  #sheet .desc { margin-top:20px; max-width:40rem; font-size:16px; line-height:1.25; letter-spacing:-.035em; }
+  #sheet .pills { margin-top:45px; display:flex; align-items:center; gap:12px; }
+  #sheet .pill { display:inline-flex; align-items:center; height:2em; border-radius:999px; font-size:10px; }
+  #sheet .pill.round { aspect-ratio:1; justify-content:center; background:#000; color:#fff; }
+  #sheet .pill.tag { padding:0 1.25em; background:#eee; }
+  #sheet .tags { display:flex; gap:2px; }
+  #sheet .col { width:min(700px, 52%); flex:none; height:100%; overflow:hidden; position:relative; }
+  #sheet .stack { display:flex; flex-direction:column; gap:60px; padding-bottom:80px; will-change:transform; }
+  #sheet .slot { width:100%; flex:none; overflow:hidden; opacity:0; transform:translateY(40px); transition:opacity .6s, transform 1.2s cubic-bezier(.16,1,.3,1); }
+  #sheet.shown .slot { opacity:1; transform:none; }
+  #sheet .slot.hero { opacity:1; transform:none; transition:none; }
+  #sheet .slot canvas { display:block; width:100%; height:100%; }
+  #sheet .slot.hero canvas { visibility:hidden; }
+  #sheet .slot.hero.landed canvas { visibility:visible; }
+  #sheet .close {
+    position:absolute; top:18px; right:18px; width:27px; height:27px; border-radius:50%;
+    background:#000; color:#fff; display:grid; place-items:center; font-size:14px;
+  }
+  #sheet .ring { position:absolute; left:30px; bottom:30px; width:25px; height:25px; }
+  #sheet .fade { opacity:0; transform:translateY(10px); transition:opacity .5s, transform .9s cubic-bezier(.16,1,.3,1); }
+  #sheet.shown .fade { opacity:1; transform:none; }
+  #sheet.shown .info .fade:nth-child(2) { transition-delay:.06s; }
+  #sheet.shown .info .fade:nth-child(3) { transition-delay:.12s; }
+
+  /* ---------- FULL 리스트 ---------- */
+  #list {
+    position:fixed; inset:0; z-index:15; display:flex; align-items:center; justify-content:center;
+    padding:90px var(--pad-x); opacity:0; pointer-events:none; transition:opacity .5s;
+  }
+  #list.open { opacity:1; pointer-events:auto; }
+  #list ol { list-style:none; width:min(760px,100%); }
+  #list li { display:flex; justify-content:space-between; align-items:baseline; padding:10px 0; border-bottom:1px solid #1d1d1d; cursor:pointer; transition:opacity .2s; }
+  #list li .n { font-size:clamp(24px,3.6vw,44px); letter-spacing:-.05em; }
+  #list ol:hover li[data-i] { opacity:.35; } #list ol li[data-i]:hover { opacity:1; }
+  #list li.cathead { border:0; padding:26px 0 6px; cursor:default; }
+  #list li.cathead:first-child { padding-top:0; }
+
+
+  /* ---------- 인트로: 흰 화면의 "Portfolio." — 마침표가 창문, 스크롤하면 그 안으로 들어감 ---------- */
+  #intro { position:fixed; inset:0; z-index:40; pointer-events:auto; touch-action:none; }
+  #intro.gone { display:none; }
+  #introSvg { position:absolute; inset:0; width:100%; height:100%; display:block; will-change:transform; }
+  #intro .hint { position:absolute; left:50%; bottom:34px; transform:translateX(-50%); color:#0a0a0a;
+    font-size:11px; font-weight:500; letter-spacing:.14em; text-transform:uppercase; display:flex; flex-direction:column; align-items:center; gap:10px; transition:opacity .5s; }
+  #intro .hint i { width:1px; height:34px; background:linear-gradient(#0a0a0a, transparent); transform-origin:top; animation:hintLine 1.8s cubic-bezier(.6,0,.2,1) infinite; }
+  @keyframes hintLine { 0% { transform:scaleY(0); } 50% { transform:scaleY(1); transform-origin:top; } 51% { transform-origin:bottom; } 100% { transform:scaleY(0); transform-origin:bottom; } }
+  /* 홈 화면 이름과 같은 자리·크기 → 들어가는 동안 이름이 제자리에 남아 색만 바뀜 */
+  #intro .corner { position:absolute; top:calc(var(--pad-y) + 6px); left:var(--pad-x); font-size:22px; font-weight:600; line-height:1; letter-spacing:-.03em; color:#0a0a0a; }
+  @media (max-width:800px) { #intro .corner { font-size:19px; } }
+  #gl { transform-origin:50% 50%; }
+  #loader { position:fixed; inset:0; z-index:50; background:#000; transition:opacity .8s; }
+  #loader.hide { opacity:0; pointer-events:none; }
+
+  @media (max-width:800px) {
+    :root { --pad-x:20px; --pad-y:20px; }
+    /* 모바일: 세로로 긴 타원, 한 단으로 쌓고 안에서 스크롤 */
+    #disc { width:96vw; height:86vh; }
+    #disc .inner { width:74%; max-height:72%; overflow-y:auto; top:52%; scrollbar-width:none; }
+    #disc .inner::-webkit-scrollbar { display:none; }
+    #disc .head h2 { font-size:24px; }
+    #disc .cols { grid-template-columns:1fr; gap:26px; margin-top:24px; }
+    #disc .clients { flex-direction:row; flex-wrap:wrap; gap:6px 14px; }
+    #disc .clients li { font-size:15px; }
+    #disc .foot { flex-wrap:wrap; gap:10px 16px; }
+    #track { height:auto; max-height:none; }
+    #track article { width:calc(100vw - 40px); height:auto; border-radius:15px; }
+    #sheet .ring { display:none; }
+    #sheet { left:20px; right:20px; top:15px; bottom:15px; flex-direction:column; overflow-y:auto; padding:40px 15px 0; gap:40px; }
+    #sheet h1 { font-size:35px; }
+    #sheet .col { width:100%; height:auto; overflow:visible; }
+    #sheet { padding-right:15px; }
+    #sheet .stack { gap:30px; transform:none !important; }
+  }
+</style>
+</head>
+<body>
+  <canvas id="gl"></canvas>
+
+  <div class="chrome" id="chrome">
+    <a class="label tl" href="#" id="home">Jungsuh Shin</a>
+    <button class="label tr" id="profileBtn" type="button" aria-expanded="false">Profile</button>
+  </div>
+
+  <div id="disc" inert>
+    <div class="inner">
+      <div class="head fade"><h2>Jungsuh Shin</h2><span>신중서</span></div>
+      <p class="lede fade">Visual content creator working across generative AI, fashion and film — from concept and direction to production.</p>
+      <div class="cols fade">
+        <div>
+          <h3>Experience</h3>
+          <div class="item"><span class="yr">2026 —</span><div><p class="org">SKAI Worldwide <em>· AX BIZ</em></p></div></div>
+          <div class="item"><span class="yr">2025 — 26</span><div><p class="org">SKAI Intelligence <em>· AI Solution</em></p>
+            <p class="desc">Generative AI ad imagery &amp; film, concept to edit. Project operations for B.THREE, an NVIDIA Omniverse–based SaaS platform.</p></div></div>
+          <div class="item"><span class="yr">2024 — 25</span><div><p class="org">Freelance <em>· Visual Content Creator</em></p>
+            <p class="desc">Fashion &amp; brand content, celebrity shoots, music video direction.</p></div></div>
+          <div class="item"><span class="yr">2023</span><div><p class="org">Dreamville Entertainment <em>· Production Intern</em></p></div></div>
+        </div>
+        <div>
+          <h3>Selected Projects</h3>
+          <ul class="clients">
+            <li>Samsung<small>AI</small></li>
+            <li>Ford<small>AI</small></li>
+            <li>Samlip Hoppang<small>AI</small></li>
+            <li>Berluti<small>Fashion</small></li>
+            <li>Prada<small>Fashion</small></li>
+          </ul>
+        </div>
+        <div>
+          <h3>Education</h3>
+          <div class="item"><span class="yr">2017 — 24</span><div><p class="org">School of Visual Arts</p><p class="desc">BFA, Visual &amp; Critical Studies · New York</p></div></div>
+          <div class="item"><span class="yr">2016 — 17</span><div><p class="org">University of Southern California</p><p class="desc">Los Angeles</p></div></div>
+        </div>
+      </div>
+      <div class="foot fade"><span>Seoul, Korea</span><a href="mailto:you@example.com">Email</a><a href="#" target="_blank" rel="noopener">Instagram</a></div>
+    </div>
+  </div>
+  </div>
+
+  <div id="sheet" aria-hidden="true">
+    <div class="info">
+      <h1 class="fade" id="sTitle">Project</h1>
+      <p class="desc fade" id="sDesc"></p>
+      <div class="pills fade">
+        <a class="pill round" href="#" target="_blank" rel="noopener" aria-label="Visit site">↗</a>
+        <div class="tags" id="sTags"></div>
+      </div>
+    </div>
+    <div class="col"><div class="stack" id="sStack"></div></div>
+    <svg class="ring fade" viewBox="0 0 25 25"><circle cx="12.5" cy="12.5" r="11" fill="none" stroke="#000" stroke-width="2" opacity=".15"/><circle id="ringArc" cx="12.5" cy="12.5" r="11" fill="none" stroke="#000" stroke-width="2" stroke-dasharray="69.1" stroke-dashoffset="69.1" transform="rotate(-90 12.5 12.5)"/></svg>
+    <button class="close fade" id="sClose" type="button" aria-label="Close">✕</button>
+  </div>
+
+  <div id="list"><ol id="listItems"></ol></div>
+  <div id="intro" aria-label="Portfolio intro — scroll to enter">
+    <svg id="introSvg" aria-hidden="true"></svg>
+    <span class="corner l">Jungsuh Shin</span>
+    <p class="hint">Scroll<i></i></p>
+  </div>
+  <div id="loader"></div>
+
+<script>
+/* =====================================================================
+   0. 콘텐츠 (임의 데이터) — 나중에 실제 프로젝트로 교체
+   ===================================================================== */
+const PROJECTS = [
+  { title: "The Lookback",   client: "BO®S",          cat: "Web / Archive",   year: 2026, bg: "#ededed", fg: "#111",   accent: "#e8402f", layout: "stack" },
+  { title: "Book of Joy",    client: "Northwind Press",cat: "Editorial",       year: 2025, bg: "#8fb3a5", fg: "#10241d",accent: "#f4e9d0", layout: "editorial" },
+  { title: "Nathan Riley",   client: "Nathan Riley",   cat: "Portfolio",       year: 2025, bg: "#c9c3b8", fg: "#1d1b18",accent: "#ffffff", layout: "grid" },
+  { title: "Casa Lumen",     client: "Casa Lumen",     cat: "Hospitality",     year: 2025, bg: "#2c2a26", fg: "#efe6d6",accent: "#c7a46b", layout: "serif" },
+  { title: "Orbit Mars",     client: "Orbit Labs",     cat: "Campaign",        year: 2024, bg: "#2a1458", fg: "#ffd34d",accent: "#ff6b2d", layout: "poster" },
+  { title: "Gil Studio",     client: "Gil Studio",     cat: "Brand / Web",     year: 2024, bg: "#070707", fg: "#d8c25a",accent: "#ffffff", layout: "stars" },
+  { title: "Discoveryland",  client: "Discoveryland",  cat: "Travel",          year: 2024, bg: "#5f7a5c", fg: "#f7f3e8",accent: "#e7c98a", layout: "serif" },
+  { title: "Griflan",        client: "Griflan",        cat: "Agency",          year: 2023, bg: "#141111", fg: "#f1ead6",accent: "#e0312b", layout: "quotes" },
+  { title: "Field Notes",    client: "Field & Co.",    cat: "E-commerce",      year: 2023, bg: "#f2e8d5", fg: "#2a2118",accent: "#3d6b4f", layout: "grid" },
+  { title: "Kinetic Type",   client: "Personal",       cat: "Experiment",      year: 2023, bg: "#1b2bff", fg: "#ffffff",accent: "#ff3df0", layout: "stack" },
+  { title: "Soft Machines",  client: "SM Records",     cat: "Music",           year: 2022, bg: "#ffb7c5", fg: "#2b0d14",accent: "#2b0d14", layout: "poster" },
+  { title: "Atlas Index",    client: "Atlas",          cat: "Data / Web",      year: 2022, bg: "#e4e4e0", fg: "#121212",accent: "#ff5a1f", layout: "editorial" },
+];
+/* 큰 분류 3개 — 이름·색은 여기서 바꾸세요 (group 번호로 프로젝트와 연결) */
+const CATEGORIES = [
+  { name: "Web",         color: "#5b8cff" },
+  { name: "3D · Motion", color: "#ff7a3d" },
+  { name: "Branding",    color: "#3ddc97" },
+];
+// 프로젝트 → 카테고리 (여기에 없는 프로젝트는 화면에 안 나옴)
+const GROUP = { "The Lookback": 0, "Nathan Riley": 0, "Gil Studio": 0, "Atlas Index": 0, "Field Notes": 0,
+                "Orbit Mars": 1, "Kinetic Type": 1,
+                "Book of Joy": 2, "Discoveryland": 2, "Griflan": 2 };
+for (let i = PROJECTS.length - 1; i >= 0; i--) if (!(PROJECTS[i].title in GROUP)) PROJECTS.splice(i, 1);
+PROJECTS.forEach(p => p.group = GROUP[p.title]);
+PROJECTS.sort((a, b) => a.group - b.group);
+PROJECTS.forEach(p => {
+  p.slug = p.title.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  p.tags = [p.cat, String(p.year)];
+  p.desc = `${p.client} 프로젝트 설명이 들어갈 자리입니다. 어떤 문제를 풀었는지, 어떤 접근을 했는지, 결과가 어땠는지 두세 문장으로 적어주세요.`;
+});
+
+/* =====================================================================
+   1. 상수
+   ===================================================================== */
+// --- 카드 원통 (기존 버전 그대로) ---
+const N = PROJECTS.length;
+const CARD_W = 3.6, CARD_H = 2.3, GAP = 0.45;
+const FOV = 38 * Math.PI / 180;
+const WHEEL_SPEED = 0.0016;
+const DRAG_FOLLOW = 1;      // 1 = 카드가 마우스와 정확히 같은 거리만큼 이동
+const DRAG_GLIDE = 150;     // 손을 뗄 때 이어서 미끄러지는 정도 (ms, 0이면 바로 멈춤)
+// --- 카테고리별 줄 ---
+const LAYOUT = "tiered";   // "stack" = 같은 크기로 위아래 쌓기, "tiered" = 1번 축 크게 + 나머지 작게 아래
+const SMALL = .6;          // tiered에서 아래 줄 크기
+const LOOP_MIN = 5;                                // 작업이 이 개수 이상인 줄만 끝없이 도는 원통, 적으면 반복 없이 호(arc)로 배치
+const R = (12 * (CARD_W + GAP)) / (Math.PI * 2);   // 호(arc) 줄의 원통 반지름 (크기 1 기준) — 휘는 정도
+const LOOP_SLOTS = 20;                             // 끝없이 도는 줄 한 바퀴의 칸 수 (부족하면 반복) — 클수록 원통이 커져 화면 좌우로 길게 뻗음
+const R_LOOP = (LOOP_SLOTS * (CARD_W + GAP)) / (Math.PI * 2);
+// --- 그 외 (현재 버전 유지) ---
+const FLOOR = { alpha:.9, y:0, run:30, width:80, cell:1.1, grid:.11, refl:1.1, reflGap:0, reflSpread:.35, reflLight:.6, reflRes:.05 };
+const VEIL = { edge:.26, max:1 };
+const HOLE = { lens:1.15, reach:.2, orbit:.35, wave:.025, aberr:.0025, breath:0, open:.85, close:1.1 };
+const BALL = { warp:-.045, shade:-1.2, edge:[.22,.5], decay:4, diffuse:40, rad:.025 };
+const COL_WHEEL = 1.25, COL_EASE = .1;            // 프로젝트 시트 이미지 컬럼 스크롤
+
+/* =====================================================================
+   2. 이징 & 트윈 (GSAP 없이)
+   ===================================================================== */
+const ease = {
+  expoOut: t => t >= 1 ? 1 : 1 - Math.pow(2, -10 * t),
+  expoInOut: t => t <= 0 ? 0 : t >= 1 ? 1 : t < .5 ? Math.pow(2, 20 * t - 10) / 2 : (2 - Math.pow(2, -20 * t + 10)) / 2,
+  power2Out: t => 1 - (1 - t) * (1 - t),
+  power1Out: t => 1 - (1 - t),
+};
+const tweens = [];
+function tween(obj, key, to, { dur = .6, e = ease.expoOut, delay = 0, done } = {}) {
+  for (let i = tweens.length - 1; i >= 0; i--) if (tweens[i].obj === obj && tweens[i].key === key) tweens.splice(i, 1);
+  tweens.push({ obj, key, from: obj[key], to, dur, e, t: -delay, done });
+}
+function stepTweens(dt) {
+  for (let i = tweens.length - 1; i >= 0; i--) {
+    const tw = tweens[i]; tw.t += dt;
+    if (tw.t < 0) continue;
+    const p = Math.min(1, tw.t / tw.dur);
+    tw.obj[tw.key] = tw.from + (tw.to - tw.from) * tw.e(p);
+    if (p >= 1) { tweens.splice(i, 1); tw.done && tw.done(); }
+  }
+}
+const lerp = (a, b, t) => a + (b - a) * t;
+const damp = (a, b, k, ratio) => lerp(a, b, 1 - Math.pow(1 - k, ratio));   // 프레임레이트 무관
+const wrap = (min, max, v) => { const r = max - min; return min + ((((v - min) % r) + r) % r); };
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+
+/* =====================================================================
+   3. 카드 텍스처 (기존 버전 그대로 — 캔버스로 임의 생성)
+   ===================================================================== */
+const TEX_W = 1152, TEX_H = Math.round(TEX_W * CARD_H / CARD_W);
+const rand = (s => () => (s = (s * 16807) % 2147483647) / 2147483647)(7);
+
+function drawCardBase(p, i) {   // 라벨 없는 카드 그림 (상세 시트의 첫 이미지로도 사용)
+  const c = document.createElement("canvas");
+  c.width = TEX_W; c.height = TEX_H;
+  const g = c.getContext("2d");
+  const W = TEX_W, H = TEX_H;
+  const grd = g.createLinearGradient(0, 0, W, H);
+  grd.addColorStop(0, p.bg); grd.addColorStop(1, shade(p.bg, -18));
+  g.fillStyle = grd; g.fillRect(0, 0, W, H);
+  g.fillStyle = p.fg; g.globalAlpha = .55;
+  g.font = '500 18px "Inter Tight"';
+  g.fillText("Work, Studio, Index, About", 44, 52);
+  g.textAlign = "right"; g.fillText("Contact ↗", W - 44, 52); g.textAlign = "left";
+  g.globalAlpha = 1;
+  const L = p.layout;
+  if (L === "stack") {
+    g.fillStyle = p.fg; g.textAlign = "center";
+    g.font = '800 92px "Inter Tight"'; g.fillText(p.client.toUpperCase(), W / 2, 150);
+    g.font = '800 64px "Inter Tight"'; g.fillText(`${p.title.split(" ")[0].toUpperCase()}/${p.year}`, W / 2, 218);
+    g.textAlign = "left";
+    for (let k = 0; k < 13; k++) {
+      const t = k / 12, s = .35 + t * .75;
+      const w = 90 * s, h = 150 * s, x = 120 + t * 840, y = H * .62 - h / 2 - t * 40;
+      g.fillStyle = `hsl(${(i * 40 + k * 23) % 360} ${40 + rand() * 40}% ${35 + rand() * 35}%)`;
+      g.fillRect(x, y, w, h);
+    }
+  } else if (L === "editorial") {
+    g.fillStyle = p.accent; g.globalAlpha = .9;
+    g.font = '800 300px "Inter Tight"'; g.fillText("ABOUT", 30, H * .72);
+    g.globalAlpha = 1;
+    g.save(); g.translate(W * .52, H * .22); g.rotate(-.06);
+    g.fillStyle = p.fg; g.fillRect(0, 0, 300, 380);
+    g.fillStyle = p.bg; g.font = 'italic 800 40px "Inter Tight"';
+    g.fillText("THE SEARCH", 24, 60); g.fillText("FOR JOY", 24, 104);
+    for (let k = 0; k < 6; k++) { g.fillStyle = `hsl(${k * 50} 50% 60%)`; g.fillRect(24 + (k % 3) * 88, 150 + Math.floor(k / 3) * 100, 76, 84); }
+    g.restore();
+  } else if (L === "grid") {
+    const cols = 6, rows = 3, pad = 14, gx = 44, gy = 90;
+    const cw = (W - gx * 2 - pad * (cols - 1)) / cols, ch = (H - gy - 110 - pad * (rows - 1)) / rows;
+    for (let r = 0; r < rows; r++) for (let k = 0; k < cols; k++) {
+      g.fillStyle = `hsl(${(i * 30 + r * 40 + k * 15) % 360} ${15 + rand() * 25}% ${45 + rand() * 30}%)`;
+      g.fillRect(gx + k * (cw + pad), gy + r * (ch + pad), cw, ch);
+    }
+  } else if (L === "serif") {
+    g.fillStyle = shade(p.bg, 14);
+    g.beginPath(); g.arc(W * .7, H * .62, 230, Math.PI, 0); g.lineTo(W * .7 + 230, H); g.lineTo(W * .7 - 230, H); g.fill();
+    g.fillStyle = p.accent; g.beginPath(); g.ellipse(W * .7, H * .86, 260, 40, 0, 0, Math.PI * 2); g.fill();
+    g.fillStyle = p.fg; g.font = 'italic 220px "Instrument Serif"'; g.fillText(p.title.split(" ")[0], 40, H * .6);
+  } else if (L === "poster") {
+    g.fillStyle = p.accent;
+    g.beginPath(); g.moveTo(0, H * .7);
+    for (let x = 0; x <= W; x += 40) g.lineTo(x, H * .7 + Math.sin(x * .02 + i) * 26 + rand() * 18);
+    g.lineTo(W, H); g.lineTo(0, H); g.fill();
+    g.fillStyle = p.fg; g.font = '800 70px "Inter Tight"';
+    g.save(); g.translate(80, 150); g.rotate(.05);
+    g.fillText(`I AM ${p.title.split(" ")[0].toUpperCase()}.`, 0, 0);
+    g.fillText(`${p.title.toUpperCase()}.`, 0, 80); g.restore();
+    g.fillStyle = "#e32"; g.beginPath(); g.ellipse(W * .32, H * .62, 120, 46, -.1, 0, Math.PI * 2); g.fill();
+  } else if (L === "stars") {
+    for (let k = 0; k < 260; k++) { g.fillStyle = `rgba(255,255,255,${rand() * .8})`; g.fillRect(rand() * W, rand() * H, 1.6, 1.6); }
+    g.fillStyle = p.fg; g.textAlign = "center"; g.font = '500 34px "Inter Tight"';
+    ["My design style is rooted in", "typography, editorial layouts", "and simplicity, combined with", "motion to create considered", "custom websites."]
+      .forEach((l, k) => g.fillText(l, W / 2, 200 + k * 46));
+    g.textAlign = "left";
+  } else if (L === "quotes") {
+    g.fillStyle = p.fg; g.textAlign = "center";
+    g.font = '400 110px "Instrument Serif"'; g.fillText("Client", W / 2, 170);
+    g.font = 'italic 110px "Instrument Serif"'; g.fillText("Confessions", W / 2, 260);
+    g.textAlign = "left";
+    [[120, 330, -.12, p.fg], [420, 360, .05, p.accent], [760, 300, .1, p.fg]].forEach(([x, y, r, col]) => {
+      g.save(); g.translate(x, y); g.rotate(r); g.fillStyle = col; g.fillRect(0, 0, 280, 190);
+      g.fillStyle = col === p.fg ? p.accent : p.fg; g.globalAlpha = .6;
+      for (let l = 0; l < 6; l++) g.fillRect(24, 34 + l * 22, 230 - (l % 3) * 30, 8);
+      g.restore(); g.globalAlpha = 1;
+    });
+  }
+  return c;
+}
+function withLabel(base, p) {   // 카드 안 제목 + 화살표 버튼
+  const c = document.createElement("canvas"); c.width = base.width; c.height = base.height;
+  const g = c.getContext("2d"), W = c.width, H = c.height;
+  g.drawImage(base, 0, 0);
+  g.textAlign = "left"; g.fillStyle = luminance(p.bg) > .5 && p.layout !== "stars" ? "#111" : "#fff";
+  g.font = '500 56px "Inter Tight"'; g.fillText(p.title, 44, H - 44);
+  g.fillStyle = "#111"; g.beginPath(); g.arc(W - 74, H - 74, 30, 0, Math.PI * 2); g.fill();
+  g.strokeStyle = "#fff"; g.lineWidth = 3; g.beginPath();
+  g.moveTo(W - 85, H - 74); g.lineTo(W - 63, H - 74); g.moveTo(W - 71, H - 82); g.lineTo(W - 63, H - 74); g.lineTo(W - 71, H - 66); g.stroke();
+  return c;
+}
+function drawDetail(p, i, k) {   // 상세 페이지의 추가 이미지 (임의)
+  const W = 1400, ratios = [1.7, 2.1, 1.9, 2.1], H = Math.round(W / ratios[k % 4]);
+  const c = document.createElement("canvas"); c.width = W; c.height = H;
+  const g = c.getContext("2d"), rnd = seeded(i * 31 + k * 7);
+  g.fillStyle = k % 2 ? "#e6e1d6" : shade(p.bg, 10); g.fillRect(0, 0, W, H);
+  g.fillStyle = k % 2 ? "#3b342b" : p.fg; g.textAlign = "center";
+  g.font = `${H * .12}px "Instrument Serif"`;
+  ["A SANCTUARY", "INSPIRED BY", "THE PROCESS"].forEach((l, n) => g.fillText(k % 2 ? l : "", W / 2, H * (.38 + n * .14)));
+  if (!(k % 2)) for (let n = 0; n < 8; n++) { g.fillStyle = `hsl(${(i * 40 + n * 30) % 360} 30% ${40 + rnd() * 30}%)`; g.fillRect(W * (.08 + n * .11), H * .3, W * .09, H * .4); }
+  return c;
+}
+function seeded(s) { return () => (s = (s * 16807) % 2147483647) / 2147483647; }
+function shade(hex, amt) { const n = parseInt(hex.slice(1), 16), f = v => clamp(v + amt, 0, 255); return `rgb(${f(n >> 16)},${f((n >> 8) & 255)},${f(n & 255)})`; }
+function luminance(hex) { const n = parseInt(hex.slice(1), 16); return (.299 * (n >> 16) + .587 * ((n >> 8) & 255) + .114 * (n & 255)) / 255; }
+
+/* =====================================================================
+   4. WebGL2 기본 도구
+   ===================================================================== */
+const canvas = document.getElementById("gl");
+const gl = canvas.getContext("webgl2", { antialias:true, alpha:false, premultipliedAlpha:false });
+const halfFloat = !!gl.getExtension("EXT_color_buffer_float");
+
+function program(vs, fs) {
+  const p = gl.createProgram();
+  for (const [type, src] of [[gl.VERTEX_SHADER, vs], [gl.FRAGMENT_SHADER, fs]]) {
+    const s = gl.createShader(type); gl.shaderSource(s, "#version 300 es\nprecision highp float;\n" + src); gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) console.error(gl.getShaderInfoLog(s), src);
+    gl.attachShader(p, s);
+  }
+  gl.linkProgram(p);
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) console.error(gl.getProgramInfoLog(p));
+  const u = {};
+  for (let i = 0, n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS); i < n; i++) {
+    const name = gl.getActiveUniform(p, i).name.replace(/\[0\]$/, "");
+    u[name] = gl.getUniformLocation(p, name);
+  }
+  return { p, u };
+}
+function plane(sx, sy) {  // -0.5..0.5 단위 평면, 분할 (sx × sy)
+  const pos = [], uv = [], idx = [];
+  for (let j = 0; j <= sy; j++) for (let i = 0; i <= sx; i++) { pos.push(i / sx - .5, j / sy - .5); uv.push(i / sx, j / sy); }
+  for (let j = 0; j < sy; j++) for (let i = 0; i < sx; i++) { const a = j * (sx + 1) + i; idx.push(a, a + 1, a + sx + 2, a, a + sx + 2, a + sx + 1); }
+  const vao = gl.createVertexArray(); gl.bindVertexArray(vao);
+  for (const [loc, data] of [[0, pos], [1, uv]]) {
+    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer()); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+  }
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.createBuffer()); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(idx), gl.STATIC_DRAW);
+  gl.bindVertexArray(null);
+  return { vao, n: idx.length, draw() { gl.bindVertexArray(vao); gl.drawElements(gl.TRIANGLES, this.n, gl.UNSIGNED_SHORT, 0); } };
+}
+function texture(src) {
+  const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src);
+  gl.generateMipmap(gl.TEXTURE_2D);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  const an = gl.getExtension("EXT_texture_filter_anisotropic");
+  if (an) gl.texParameterf(gl.TEXTURE_2D, an.TEXTURE_MAX_ANISOTROPY_EXT, 8);
+  return t;
+}
+function target(w, h, { depth = false, float = false } = {}) {
+  const tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tex);
+  const fb = gl.createFramebuffer(), o = { tex, fb, w, h };
+  o.resize = (W, H) => {
+    o.w = W; o.h = H; gl.bindTexture(gl.TEXTURE_2D, tex);
+    if (float && halfFloat) gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, W, H, 0, gl.RGBA, gl.HALF_FLOAT, null);
+    else gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, W, H, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fb); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  };
+  o.resize(w, h);
+  return o;
+}
+const blank = (() => { const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0, 0, 0, 255])); return t; })();
+
+/* =====================================================================
+   5. 셰이더
+   ===================================================================== */
+// --- 카드: 원통 위로 휘고, 스크롤 속도에 따라 출렁임 (기존 버전 그대로) ---
+// uCyl = 1이면 원통 위, 0이면 화면에 평평한 사각형(uNdcPos/uNdcScale). 시트로 날아갈 때만 둘 사이를 보간.
+const cardProg = program(`
+layout(location=0) in vec2 aPos; layout(location=1) in vec2 aUv;
+uniform mat4 uVP;
+uniform float uAngle, uR, uVel, uTime, uCyl, uY, uS;
+uniform vec2 uCenter;   // 원통 축 위치 (x, z)
+uniform vec2 uSize, uNdcPos, uNdcScale;
+out vec2 vUv; out float vFront; out vec3 vN, vW; out float vSx;
+void main() {
+  vUv = aUv;
+  vec2 p = aPos * uSize;
+  float a = uAngle + p.x / uR;                 // 원통 위 각도
+  float v = uVel;
+  float r = uR;
+  // 속도에 따라 카드 중앙이 바깥으로 불룩 + 세로로 물결
+  r += abs(v) * 0.55 * uS * sin(aUv.y * 3.14159);
+  p.y += v * 0.45 * uS * sin(a * 3.0 + uTime * 0.6);
+  p.y *= 1.0 + abs(v) * 0.08 * cos(a * 2.0);
+  vec3 w = vec3(uCenter.x + sin(a) * r, p.y + uY, uCenter.y + cos(a) * r);   // 줄마다 축 위치·높이가 다름
+  vec4 c = uVP * vec4(w, 1.0);
+  vFront = mix(1.0, cos(a), uCyl);
+  vN = normalize(mix(vec3(0.0, 0.0, 1.0), vec3(sin(a), 0.0, cos(a)), uCyl));   // 원통 곡면의 방향 (조명용)
+  vW = w;
+  vSx = c.x / c.w;   // 화면 가로 위치 (-1 왼쪽 끝 ~ 1 오른쪽 끝)
+  if (uCyl > 0.999) { gl_Position = c; return; }
+  vec2 f = uNdcPos + aPos * uNdcScale;
+  gl_Position = vec4(mix(vec3(f, 0.0), c.xyz / c.w, uCyl), 1.0);
+}`, `
+uniform sampler2D uTex;
+uniform float uHover, uReveal, uShade, uWhite, uAlpha, uAspect, uCorner;
+uniform vec3 uCam;
+in vec2 vUv; in float vFront; in vec3 vN, vW; in float vSx; out vec4 o;
+float sdRound(vec2 p, vec2 b, float r) { vec2 q = abs(p) - b + r; return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r; }
+const float SHADE_EDGE = 0.38;  // 화면 가장자리 카드 밝기 (낮을수록 어두움)
+const float SHADE_SIDE = 0.14;  // 빛 반대편 면 어두움
+const float SHADE_SPEC = 0.22;  // 광택 세기
+const float SHADE_FOOT = 0.08;
+const float SHADE_LIFT = 0.1;   // 가운데 카드 밝기 보정  // 카드 아래쪽 어두움
+void main() {
+  vec2 sz = vec2(uAspect, 1.0);
+  float d = sdRound((vUv - 0.5) * sz, sz * 0.5, uCorner);
+  float aa = fwidth(d);
+  float alpha = (1.0 - smoothstep(-aa, aa, d)) * uAlpha;
+  if (alpha < 0.01) discard;
+  // 호버 시 살짝 줌인
+  vec2 uv = (vUv - 0.5) * (1.0 - uHover * 0.05) + 0.5;
+  vec3 col = texture(uTex, uv).rgb;
+  // 원통 옆/뒤로 갈수록 어둡게
+  float light = smoothstep(-0.15, 0.95, vFront);
+  col *= mix(1.0, mix(0.08, 1.0, light), uShade);
+  // 레퍼런스식 곡면 조명: 왼쪽 위 앞에서 오는 빛 → 빛을 덜 받는 쪽은 살짝 어둡게 + 곡면을 따라 흐르는 은은한 광택
+  vec3 L = normalize(vec3(-0.4, 0.5, 1.0)), n = normalize(vN), V = normalize(uCam - vW);
+  float dif = dot(n, L) * 0.5 + 0.5;
+  col *= 1.0 - SHADE_SIDE * uShade * (1.0 - dif);
+  // 정면은 밝게, 화면 좌우로 갈수록 확실히 어둡게 (레퍼런스처럼 가운데에 조명이 떨어지는 느낌)
+  col *= mix(1.0, SHADE_EDGE, smoothstep(0.45, 1.05, abs(vSx)) * uShade);
+  // 포인트(화면 가운데)는 한 단계 더 밝게
+  col *= 1.0 + SHADE_LIFT * uShade * (1.0 - smoothstep(0.0, 0.55, abs(vSx)));
+  // 곡면을 따라 흐르는 광택: 정면 카드 위쪽에 또렷하게
+  col += pow(max(dot(n, normalize(L + V)), 0.0), 28.0) * SHADE_SPEC * uShade * smoothstep(0.2, 1.0, vUv.y);
+  // 카드 아래쪽으로 갈수록 어둡게 (빛이 위에서 내려오는 느낌)
+  col *= 1.0 - SHADE_FOOT * uShade * (1.0 - smoothstep(0.0, 0.7, vUv.y));
+  col *= uReveal;
+  col = mix(col, vec3(1.0), uWhite);
+  o = vec4(col, alpha);
+}`);
+
+// --- 바닥: 격자선 + 접촉 그림자 + 격자선 위에만 맺히는 카드 반사 ---
+const floorProg = program(`
+layout(location=0) in vec2 aPos; layout(location=1) in vec2 aUv;
+uniform mat4 uVP; uniform vec3 uPos, uScale; uniform float uRun, uZ0;
+out vec2 vUv; out vec3 vWorld; out float vFar;
+void main() {
+  vUv = aUv;
+  vec3 w = uPos + vec3(aPos.x * uScale.x, 0.0, -aPos.y * uScale.z);
+  vFar = -(w.z - uZ0) / max(uRun, 1e-4);      // 0 = 원통 앞면 바로 아래, 1 = 가장 먼 곳
+  vWorld = w;
+  gl_Position = uVP * vec4(w, 1.0);
+}`, `
+uniform float uAlpha, uGrid, uReflA, uReflSpread, uReflLX; uniform vec2 uGridF; uniform vec3 uTint;
+uniform sampler2D uRefl; uniform mat4 uReflVP; uniform vec2 uRes;
+uniform sampler2D uMirror;      // 바닥면 기준으로 뒤집어 그린 카드 (부드러운 거울 반사용)
+uniform sampler2D uMirTop;      // 위 줄 전용 반사 (위 줄 바로 아래에 비침)
+uniform float uTopEdge, uTopReach;   // 위 줄 아래 끝의 화면 y(px, 아래가 0), 반사가 사라지는 길이(px)
+const float MIRROR = 0.32;      // 카드 반사 세기 (아주 은은하게)
+const float MIRROR_REACH = 4.5; // 클수록 반사가 카드 바로 아래에서 빨리 사라짐
+const float GRID_W = 0.8;       // 격자선 두께 (이전 1.5)
+const float GRID_BOOST = 1.0;   // 선이 얇아진 만큼 밝기를 살짝 보정해 색 비침 정도 유지
+const float GLOW = 0.45;       // 격자선에 비치는 카드 색의 세기
+const float GLOW_DESAT = 0.35; // 비치는 색의 채도 낮춤 (0 = 원색, 1 = 무채색)
+in vec2 vUv; in vec3 vWorld; in float vFar; out vec4 o;
+void main() {
+  float fade = 1.0 - smoothstep(0.2, 0.95, vFar);
+  float contact = exp(-abs(vFar) * 14.0);                 // 카드 바로 아래 그림자
+  vec3 col = vec3(0.0) * (1.0 - contact * 0.55);
+  vec2 g = vec2(vUv.x * uGridF.x, vFar * uGridF.y);
+  vec2 gf = abs(fract(g) - 0.5), gw = fwidth(g) * GRID_W;   // 선 두께 (픽셀 단위 배수)
+  vec2 ls = vec2(1.0) - smoothstep(vec2(0.0), gw, gf);
+  float line = max(ls.x, ls.y);
+  col += line * uGrid * GRID_BOOST * fade * mix(vec3(1.0), uTint * 1.5, 0.3);   // 격자선에 카테고리 색
+  col += uTint * contact * 0.04 * fade;                             // 카드 아래 은은한 색 번짐
+  if (uReflA > 1e-3) {
+    // 카드 모양은 비치지 않고, 카드의 "색"만 빛처럼 격자선에 번지게:
+    // 아주 낮은 해상도로 그린 반사 이미지를 여러 번 넓게 샘플해 형태를 완전히 뭉갬
+    // 화면에서 이 바닥 지점 "위쪽"에 있는 카드들의 색을 모아 빛처럼 받음 → 아래 줄은 가깝게, 위 줄은 멀리서 은은하게
+    vec2 ruv = gl_FragCoord.xy / uRes;
+    vec3 rc = vec3(0.0); float ws = 0.0;
+    for (int j = 1; j <= 12; j++) {
+      float w = exp(-float(j) * 0.16);
+      for (int i = -1; i <= 1; i++) rc += texture(uRefl, ruv + vec2(float(i) * 0.03, float(j) * 0.04)).rgb * w;
+      ws += w * 3.0;
+    }
+    rc /= ws;
+    float fall = exp(-(vFar > 0.0 ? vFar * 3.2 : -vFar * 1.0));        // 카드에서 멀어질수록 약해짐
+    rc = mix(rc, vec3(dot(rc, vec3(0.299, 0.587, 0.114))), GLOW_DESAT);   // 채도를 살짝 낮춤
+    col += rc * uReflA * fall * fade * line * GLOW;                     // 격자선에 카드 색
+    // 바닥 면 전체에 카드가 아주 은은하게 비침: 흐릿하게 뭉개고, 카드에서 멀어질수록 빠르게 사라짐
+    vec3 mr = vec3(0.0);
+    for (int i = -1; i <= 1; i++) for (int j = -1; j <= 1; j++)
+      mr += texture(uMirror, ruv + vec2(float(i) * 0.004, float(j) * 0.006)).rgb;
+    mr /= 9.0;
+    float mfall = exp(-max(vFar, 0.0) * MIRROR_REACH);
+    col += mr * MIRROR * mfall * fade;
+    // 위 줄 반사: 위 줄 아래 끝에서 시작해 아래로 내려갈수록 사라짐
+    vec3 mt = vec3(0.0);
+    for (int i = -1; i <= 1; i++) for (int j = -1; j <= 1; j++)
+      mt += texture(uMirTop, ruv + vec2(float(i) * 0.004, float(j) * 0.006)).rgb;
+    mt /= 9.0;
+    float below = uTopEdge - gl_FragCoord.y;
+    col += mt * MIRROR * exp(-max(below, 0.0) / uTopReach) * step(0.0, below);
+  }
+  o = vec4(col, uAlpha * fade);
+}`);
+
+// --- 풀스크린 패스들 ---
+const FS_VS = `layout(location=0) in vec2 aPos; layout(location=1) in vec2 aUv; out vec2 vUv; void main(){ vUv = aUv; gl_Position = vec4(aPos * 2.0, 0.0, 1.0); }`;
+const veilProg = program(FS_VS, `
+uniform float uAlpha; in vec2 vUv; out vec4 o;
+void main() { float g = max(smoothstep(1.0 - ${VEIL.edge}, 1.0, vUv.y), smoothstep(${VEIL.edge}, 0.0, vUv.y)); g *= g; o = vec4(0.0, 0.0, 0.0, uAlpha * ${VEIL.max.toFixed(1)} * g); }`);
+
+const dimProg = program(FS_VS, `uniform float uAlpha; in vec2 vUv; out vec4 o; void main(){ o = vec4(0.0, 0.0, 0.0, uAlpha); }`);
+
+// 커서 밑 높이장(height field) 시뮬레이션 — 감쇠 + 확산 + 커서 위치에 가우시안
+const trailProg = program(FS_VS, `
+uniform sampler2D uPrev; uniform vec2 uTexel, uPos; uniform float uDecay, uDiff, uAmp, uRad, uAspect;
+in vec2 vUv; out vec4 o;
+void main() {
+  float c = texture(uPrev, vUv).r;
+  float n = texture(uPrev, vUv + vec2(uTexel.x, 0.0)).r + texture(uPrev, vUv - vec2(uTexel.x, 0.0)).r
+          + texture(uPrev, vUv + vec2(0.0, uTexel.y)).r + texture(uPrev, vUv - vec2(0.0, uTexel.y)).r;
+  float h = mix(c, n * 0.25, uDiff) * uDecay;
+  vec2 d = vUv - uPos; vec2 q = vec2(d.x, d.y / uAspect);
+  h += uAmp * exp(-dot(q, q) / (uRad * uRad));
+  o = vec4(min(h, 1.5), 0.0, 0.0, 1.0);
+}`);
+
+// 최종 합성: 블랙홀(프로필) 렌즈 + 커서 볼
+const postProg = program(FS_VS, `
+uniform sampler2D uScene, uTrail; uniform vec2 uAspect, uCenter, uTrailTexel, uBallEdge;
+uniform float uEx;   // 타원 가로 배율 (1 = 원)
+const float HOLE_SOFT = 0.22;     // 경계가 번지는 폭 (반지름 대비) — 클수록 흐릿한 경계
+const float HOLE_RIM_DIM = 0.25;  // 경계 바로 바깥 링의 밝기 (낮을수록 링이 어둠에 묻힘)
+uniform float uTime, uP, uRadius, uLens, uReach, uOrbit, uWave, uAberr, uBreath, uBallA, uBallWarp, uBallShade;
+in vec2 vUv; out vec4 o;
+vec2 rot(vec2 v, float a) { float c = cos(a), s = sin(a); return mat2(c, -s, s, c) * v; }
+float lobes(float a) { return sin(a*3.0 + uTime*0.7)*0.6 + sin(a*5.0 - uTime*0.45)*0.4; }
+vec4 sampleAt(vec2 dir, float rad) {          // 반지름 rad(가로폭 단위) 방향 dir의 원본 화면
+  vec2 uv = dir * rad * uAspect.x / (uAspect * vec2(1.0 / uEx, 1.0)) + uCenter;
+  if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return vec4(0.0, 0.0, 0.0, 1.0);
+  return texture(uScene, uv);
+}
+float bendBy(float t, float e, float fall) { return fall * e*e / max(t, 0.06); }   // 중심 근처 과도한 휨 방지   // 아인슈타인 링 근사 (1/t)
+void main() {
+  vec4 page = texture(uScene, vUv);
+  if (uP > 5e-4) {
+    vec2 q = (vUv - uCenter) * uAspect * vec2(1.0 / uEx, 1.0);
+    float t = length(q) / uAspect.x;
+    vec2 dir = length(q) > 1e-5 ? normalize(q) : vec2(1.0, 0.0);
+    float n = lobes(atan(q.y, q.x)) * uWave * sin(3.14159265 * clamp(uP, 0.0, 1.0));   // 열리는 동안만 가장자리가 출렁
+    float r = uP * uRadius * (1.0 + uBreath * sin(uTime * 1.6)) + n;
+    float k = smoothstep(0.0, 0.45, uP);              // 닫힐 때 휨·어둠의 세기 자체를 함께 줄여 자연스럽게 녹아 사라짐
+    float e = r * uLens * k * k;
+    float rr = max(r, 0.035);                          // 작아져도 중심이 바늘처럼 뾰족하게 꼬이지 않도록 최소 크기
+    float fall = 1.0 - smoothstep(r, r + uReach, t);
+    float pull = bendBy(t, e, fall);
+    vec2 sd = rot(dir, pull * uOrbit * min(uTime, 15.0));       // 프레임 드래깅(회전)
+    float split = e * uAberr;                                    // 색수차
+    vec4 cr = sampleAt(sd, t - bendBy(t, e + split, fall));
+    vec4 cg = sampleAt(sd, t - pull);
+    vec4 cb = sampleAt(sd, t - bendBy(t, e - split, fall));
+    vec4 col = vec4(cr.r, cg.g, cb.b, 1.0);
+    // 경계를 부드럽게: 블랙홀 가장자리가 칼같이 끊기지 않고 어둠 속으로 번지며, 렌즈로 휜 링도 안쪽일수록 어둡게 가라앉음
+    float d = t - r, soft = r * HOLE_SOFT;
+    // 닫히는 중엔 구멍 안쪽에 휜 화면 대신 원래 화면을 보여줌 (중심이 소용돌이처럼 꼬이는 것 방지)
+    float core = 1.0 - smoothstep(-soft * 0.5, soft * 0.4, d);
+    col.rgb = mix(col.rgb, page.rgb, core);
+    float inside = (1.0 - smoothstep(-soft * 0.35, soft, d)) * k * k;   // 어둠도 크기보다 빨리 옅어짐
+    // 링 어둡게 하기도 열린 정도(uP)에 비례 → 닫힐 때 어둠이 서서히 걷힘
+    float rim = smoothstep(0.0, 0.7, uP) * k;
+    col.rgb *= mix(1.0, mix(HOLE_RIM_DIM, 1.0, smoothstep(0.0, uReach * 0.9, d)), rim);
+    page = mix(col, vec4(0.0, 0.0, 0.0, 1.0), inside);
+    // 거의 닫혔을 땐 원래 화면으로 부드럽게 섞어서, 효과가 꺼지는 순간 튀지 않게
+  }
+  if (uBallA > 1e-3) {
+    vec2 e = uTrailTexel * 1.5;
+    vec2 g = vec2(texture(uTrail, vUv + vec2(e.x, 0.0)).r - texture(uTrail, vUv - vec2(e.x, 0.0)).r,
+                  texture(uTrail, vUv + vec2(0.0, e.y)).r - texture(uTrail, vUv - vec2(0.0, e.y)).r);
+    vec2 pw = vec2(vUv.x - 0.5, (vUv.y - 0.5) / uAspect.x);
+    float edge = 1.0 - smoothstep(uBallEdge.x, uBallEdge.y, length(pw));
+    vec2 off = g * uBallWarp * uBallA * edge;
+    float m = smoothstep(0.0, 0.002, length(off));
+    vec3 warped = texture(uScene, clamp(vUv + off, 0.0, 1.0)).rgb;
+    float sh = dot(-g, normalize(vec2(-0.3, 1.0))) * uBallShade * uBallA * edge;   // 경사면이 빛을 받는 쪽은 밝게
+    float lum = dot(warped, vec3(0.2126, 0.7152, 0.0722));
+    warped *= 1.0 + clamp(sh, -0.5, 0.5) * (1.0 - smoothstep(0.7, 0.95, lum));
+    page = mix(page, vec4(warped, 1.0), m);
+  }
+  // 화면 가장자리로 갈수록 자연스럽게 어두워짐 (비네트)
+  vec2 vq = (vUv - vec2(0.5, 0.52)) * vec2(uAspect.x, 1.0) / max(uAspect.x, 1.0);
+  page.rgb *= mix(1.0, 0.62, smoothstep(0.28, 0.85, length(vq) * 1.15));
+  o = page;
+}`);
+
+const cardGeo = plane(48, 24), floorGeo = plane(48, 24), quad = plane(1, 1);
+
+/* =====================================================================
+   6. 카메라 (원통 바깥에서 살짝 내려다봄 — 세 줄이 한 화면에 들어오도록 뒤로 뺌)
+   ===================================================================== */
+const view = { ww: 1, wh: 1, dpr: 1, small: false };
+const camera = { pos: [0, 0, 0], target: [0, 0, 0], aspect: 1, viewProj: null };
+const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+const norm = a => { const l = Math.hypot(...a); return [a[0] / l, a[1] / l, a[2] / l]; };
+const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+function perspective(fov, aspect, near, far) {
+  const f = 1 / Math.tan(fov / 2), nf = 1 / (near - far);
+  return new Float32Array([f / aspect, 0, 0, 0, 0, f, 0, 0, 0, 0, (far + near) * nf, -1, 0, 0, 2 * far * near * nf, 0]);
+}
+function lookAt(eye, target, up) {
+  const z = norm(sub(eye, target)), x = norm(cross(up, z)), y = cross(z, x);
+  return new Float32Array([x[0], y[0], z[0], 0, x[1], y[1], z[1], 0, x[2], y[2], z[2], 0, -dot(x, eye), -dot(y, eye), -dot(z, eye), 1]);
+}
+function mul(a, b) {
+  const o = new Float32Array(16);
+  for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) { let s = 0; for (let k = 0; k < 4; k++) s += a[k * 4 + j] * b[i * 4 + k]; o[i * 4 + j] = s; }
+  return o;
+}
+function project(m, p) {   // 월드 점 → 화면 px
+  const x = m[0] * p[0] + m[4] * p[1] + m[8] * p[2] + m[12], y = m[1] * p[0] + m[5] * p[1] + m[9] * p[2] + m[13], w = m[3] * p[0] + m[7] * p[1] + m[11] * p[2] + m[15];
+  return [(x / w * .5 + .5) * view.ww, (1 - (y / w * .5 + .5)) * view.wh];
+}
+const vpFrom = (pos, target) => mul(perspective(FOV, camera.aspect, 0.1, 200), lookAt(pos, target, [0, 1, 0]));
+
+/* =====================================================================
+   7. 상태 & 줄(카테고리) & 카드
+   ===================================================================== */
+const state = {
+  mouse: { x: -1, y: -1 }, hovered: null,
+  mode: "intro",                  // intro | home | project | profile | full
+  col: { t: 0, a: 0, max: 0 },    // 상세 시트 이미지 컬럼
+  hole: { p: 0 }, floorA: 0, listP: 0, reveal: 0,
+  ball: { p: 0, x: .5, y: .5, px: .5, py: .5, e: 0 },
+  time: 0, holeTime: 0, flight: null, reflVP: null,
+  activeRow: 0, tint: [0, 0, 0], drag: null,
+};
+const hexRGB = h => { const n = parseInt(h.slice(1), 16); return [(n >> 16) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255]; };
+const wrapA = a => Math.atan2(Math.sin(a), Math.cos(a));
+
+// 줄 = 카테고리. loop(끝없이 도는 원통) 또는 arc(반복 없이 앞면에 호로 배치, 끝에서 고무줄처럼 튕김)
+const rows = CATEGORIES.map((c, g) => {
+  const ps = PROJECTS.filter(p => p.group === g);
+  return { g, cat: c, ps, kind: ps.length >= LOOP_MIN ? "loop" : "arc",
+    s: 1, x: 0, y: 0, z: 0, R: R,                 // 크기·위치는 레이아웃(resize)에서 정함
+    target: 0, current: 0, raw: 0, vel: 0, idle: 0, wheelAcc: 0, wheelT: 0,
+    drift: g % 2 ? 1 : -1, cards: [], lo: 0, hi: 0, step: 0 };
+}).filter(r => r.ps.length);
+const texCache = {};
+const cards = [];
+rows.forEach(row => {
+  const n = row.ps.length;
+  if (row.kind === "loop") {
+    const reps = Math.max(1, Math.round(LOOP_SLOTS / n)), slots = n * reps;
+    row.step = Math.PI * 2 / slots;
+    for (let k = 0; k < slots; k++) row.cards.push({ p: row.ps[k % n], k, copy: k >= n });
+    row.current = -2.4 - row.g * .4;              // 인트로: 한 바퀴 돌며 들어옴
+  } else {
+    row.step = (CARD_W + GAP) / R;                // 각도 간격 (크기와 무관: 반지름도 같은 비율로 커지고 작아짐)
+    for (let k = 0; k < n; k++) row.cards.push({ p: row.ps[k], k, copy: false });
+    row.hi = (n - 1) / 2 * row.step; row.lo = -row.hi;   // 회전 가능 범위: 양 끝 카드가 정면에 올 때까지
+    row.current = .9;                             // 인트로: 옆에서 미끄러져 들어옴
+  }
+  row.cards = row.cards.map(o => {
+    const base = row.kind === "loop" ? o.k * row.step : (o.k - (n - 1) / 2) * row.step;
+    const c = { p: o.p, i: PROJECTS.indexOf(o.p), row, base, hover: 0, tex: null, base2d: null, flyTex: null, copy: o.copy };
+    cards.push(c); return c;
+  });
+});
+function buildTextures() {
+  cards.forEach(c => {
+    if (!texCache[c.i]) { const b2 = drawCardBase(c.p, c.i); texCache[c.i] = { b2, tex: texture(withLabel(b2, c.p)) }; }
+    c.base2d = texCache[c.i].b2; c.tex = texCache[c.i].tex;
+  });
+}
+const angleOf = c => c.base + c.row.current;
+const rowPoint = (row, a, dy = 0) => [row.x + Math.sin(a) * row.R, row.y + dy, row.z + Math.cos(a) * row.R];
+function frontCard(row) {   // 줄에서 정면에 가장 가까운 카드
+  let best = row.cards[0], bd = 9;
+  for (const c of row.cards) { const d = Math.abs(wrapA(angleOf(c))); if (d < bd) { bd = d; best = c; } }
+  return best;
+}
+const clampRow = (row, v) => row.kind === "arc" ? clamp(v, row.lo, row.hi) : v;
+function rotateRow(row, a) {   // 카드 기준각 a가 정면에 오도록
+  const t = row.kind === "loop" ? row.current + wrapA(-a - row.current) : -a;
+  row.target = row.raw = clampRow(row, t); row.idle = 0;
+}
+function stepRow(row, dir) {
+  if (row.kind === "arc") {
+    // 호 줄: 멈춤 지점 = 각 카드 정면 + 가운데(0). 카드가 짝수면 두 카드 사이 가운데가 추가됨 (2개 → 3단계)
+    const stops = [...new Set([...row.cards.map(c => -c.base), 0].map(v => +v.toFixed(5)))].sort((a, b) => a - b);
+    let k = 0, bd = 1e9; stops.forEach((v, i) => { const d = Math.abs(v - row.target); if (d < bd) { bd = d; k = i; } });
+    k = clamp(k - dir, 0, stops.length - 1);   // 휠 아래(+) = 다음 카드 쪽(회전 음수 방향)
+    row.target = row.raw = stops[k]; row.idle = 0; return;
+  }
+  const f = frontCard(row); rotateRow(row, f.base + dir * row.step);
+}
+function goToProject(i) {
+  let best = null, bd = 9;
+  for (const c of cards) if (c.i === i) { const d = Math.abs(wrapA(angleOf(c))); if (d < bd) { bd = d; best = c; } }
+  if (best) { rotateRow(best.row, best.base); state.activeRow = rows.indexOf(best.row); }
+}
+function cardScreenRect(c) {   // 원통 위 카드의 화면상 사각형 (시트 전환 시작점)
+  const a0 = angleOf(c), row = c.row, xs = [], ys = [];
+  for (const sx of [-1, 0, 1]) for (const sy of [-1, 1]) {
+    const q = project(camera.viewProj, rowPoint(row, a0 + sx * CARD_W * row.s / 2 / row.R, sy * CARD_H * row.s / 2));
+    xs.push(q[0]); ys.push(q[1]);
+  }
+  const l = Math.min(...xs), t = Math.min(...ys);
+  return { left: l, top: t, width: Math.max(...xs) - l, height: Math.max(...ys) - t };
+}
+
+// 줄 이름 라벨 (줄 왼쪽 위에 붙어 다님) — 누르면 그 줄을 한 칸 넘김
+const labels = rows.map(row => {
+  const el = document.createElement("button");
+  el.type = "button"; el.className = "label rowlabel"; el.style.setProperty("--c", row.cat.color);
+  el.innerHTML = `${row.cat.name}<sup>${String(row.ps.length).padStart(2, "0")}</sup>`;
+  el.addEventListener("click", e => { e.stopPropagation(); state.activeRow = rows.indexOf(row); if (row.kind === "loop") stepRow(row, 1); else rotateRow(row, 0); });
+  document.getElementById("chrome").appendChild(el);
+  return el;
+});
+
+/* =====================================================================
+   8. 인터랙션 — 휠, 드래그, 관성 (기존 버전 값, 줄마다 따로)
+   ===================================================================== */
+function rayAt(px, py) {
+  const nx = (px / view.ww) * 2 - 1, ny = -(py / view.wh) * 2 + 1;
+  const fwd = norm(sub(camera.target, camera.pos)), right = norm(cross(fwd, [0, 1, 0])), up = cross(right, fwd);
+  const th = Math.tan(FOV / 2);
+  return norm([0, 1, 2].map(k => fwd[k] + right[k] * nx * th * camera.aspect + up[k] * ny * th));
+}
+// 화면 좌표 → 각 줄의 원통과 교차 → 카드
+function pick(px, py) {
+  if (px < 0) return null;
+  const d = rayAt(px, py), o = camera.pos;
+  let best = null, bt = 1e9;
+  for (const row of rows) {
+    const ox = o[0] - row.x, oz = o[2] - row.z;
+    const A = d[0] * d[0] + d[2] * d[2], B = 2 * (ox * d[0] + oz * d[2]), C = ox * ox + oz * oz - row.R * row.R;
+    const disc = B * B - 4 * A * C; if (disc < 0) continue;
+    const t = (-B - Math.sqrt(disc)) / (2 * A); if (t > bt) continue;
+    const Y = o[1] + d[1] * t; if (Math.abs(Y - row.y) > CARD_H * row.s / 2) continue;
+    const a = Math.atan2(ox + d[0] * t, oz + d[2] * t);
+    for (const c of row.cards) if (Math.cos(angleOf(c)) > 0 && Math.abs(wrapA(a - angleOf(c)) * row.R) < CARD_W * row.s / 2) { best = c; bt = t; }
+  }
+  return best;
+}
+function rowAt(px, py) {   // 마우스에 가장 가까운 줄 (줄 정면 중심과의 화면 거리)
+  let best = rows[state.activeRow], bd = 1e9;
+  for (const row of rows) {
+    const q = project(camera.viewProj, rowPoint(row, 0)), h = project(camera.viewProj, rowPoint(row, 0, CARD_H * row.s / 2));
+    const half = Math.abs(q[1] - h[1]) * 1.3, wide = row.kind === "arc" ? (Math.abs(row.hi) + .3) * row.R / (CARD_H * row.s / 2) * half : 1e4;
+    const dy = Math.max(0, Math.abs(py - q[1]) - half), dx = Math.max(0, Math.abs(px - q[0]) - wide);
+    const dd = dx + dy;
+    if (dd < bd) { bd = dd; best = row; }
+  }
+  return best;
+}
+// 화면 1px 드래그 = 그 줄 앞면이 1px 움직이는 회전각
+function dragAngle(row) { const dist = camera.pos[2] - (row.z + row.R); return 2 * dist * Math.tan(FOV / 2) / view.wh / row.R; }
+// 호(arc) 줄: 범위를 넘으면 고무줄처럼 저항
+function rubber(row, v) {
+  if (row.kind !== "arc") return v;
+  const over = v > row.hi ? v - row.hi : v < row.lo ? v - row.lo : 0;
+  if (!over) return v;
+  const lim = .35, k = lim * (1 - Math.exp(-Math.abs(over) / lim)) * Math.sign(over);
+  return (over > 0 ? row.hi : row.lo) + k;
+}
+
+addEventListener("wheel", e => {
+  if (e.ctrlKey) return;
+  const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+  if (state.mode === "home") {
+    e.preventDefault();
+    const row = rowAt(e.clientX, e.clientY);          // 마우스가 올라간 줄만
+    state.activeRow = rows.indexOf(row); row.idle = 0;
+    if (row.kind === "loop") row.target -= d * WHEEL_SPEED;
+    else {                                            // 호 줄: 휠은 카드 한 장씩 넘김
+      row.wheelAcc += d;
+      if (Math.abs(row.wheelAcc) > 60 && performance.now() - row.wheelT > 280) { stepRow(row, Math.sign(row.wheelAcc)); row.wheelAcc = 0; row.wheelT = performance.now(); }
+    }
+  }
+  else if (state.mode === "project" && !view.small) { e.preventDefault(); state.col.t = clamp(state.col.t + d * COL_WHEEL, 0, state.col.max); }
+  else if (state.mode !== "project") e.preventDefault();
+}, { passive: false });
+setInterval(() => rows.forEach(r => r.wheelAcc *= .5), 200);
+
+canvas.addEventListener("pointerdown", e => {
+  if (state.mode !== "home") return;
+  const row = rowAt(e.clientX, e.clientY);
+  state.activeRow = rows.indexOf(row);
+  row.raw = row.target;
+  state.drag = { row, lastX: e.clientX, downX: e.clientX, downY: e.clientY, v: 0, lastT: performance.now() };
+  canvas.setPointerCapture(e.pointerId);
+});
+canvas.addEventListener("pointermove", e => {
+  state.mouse = { x: e.clientX, y: e.clientY };
+  const d = state.drag; if (!d) return;
+  const dx = e.clientX - d.lastX, now = performance.now(), row = d.row;
+  row.raw += dx * dragAngle(row) * DRAG_FOLLOW;
+  row.target = rubber(row, row.raw);
+  d.v = dx / Math.max(1, now - d.lastT);   // px/ms
+  d.lastX = e.clientX; d.lastT = now; row.idle = 0;
+});
+function endDrag(e) {
+  const d = state.drag; if (!d) return;
+  state.drag = null;
+  const row = d.row;
+  if (Math.hypot(e.clientX - d.downX, e.clientY - d.downY) < 6) {
+    const hit = pick(e.clientX, e.clientY);
+    if (hit) openProject(hit);
+  } else if (performance.now() - d.lastT < 100) {
+    row.raw += d.v * DRAG_GLIDE * dragAngle(row) * DRAG_FOLLOW;   // 움직이던 중에 놓았을 때만 살짝 미끄러짐
+  }
+  row.target = row.raw = clampRow(row, row.raw);                   // 호 줄은 범위 안으로 튕겨 돌아옴
+}
+canvas.addEventListener("pointerup", endDrag);
+canvas.addEventListener("pointercancel", endDrag);
+canvas.addEventListener("pointerleave", () => { state.mouse = { x: -1, y: -1 }; });
+
+addEventListener("keydown", e => {
+  if (e.key === "Escape") { if (state.mode === "project") closeProject(); else if (state.mode === "profile") toggleProfile(false); else if (state.mode === "full") setMode("featured"); return; }
+  if (state.mode !== "home") return;
+  const row = rows[state.activeRow];
+  if (e.key === "ArrowUp") state.activeRow = Math.max(0, state.activeRow - 1);
+  if (e.key === "ArrowDown") state.activeRow = Math.min(rows.length - 1, state.activeRow + 1);
+  if (e.key === "ArrowRight") stepRow(row, 1);
+  if (e.key === "ArrowLeft") stepRow(row, -1);
+  if (e.key === "Enter") openProject(frontCard(row));
+});
+
+/* =====================================================================
+   9. 커서 볼 (마우스 밑에서 화면이 액체처럼 출렁이며 빛을 받음)
+   ===================================================================== */
+const mouseCapable = matchMedia("(hover:hover)").matches;
+let trailA, trailB, trailW = 256, trailH = 144, trailFresh = false;
+addEventListener("pointermove", e => {
+  if (e.pointerType && e.pointerType !== "mouse") return;
+  const b = state.ball;
+  b.x = e.clientX / view.ww; b.y = 1 - e.clientY / view.wh;
+  if (b.p < 1 && !b.tw) { b.tw = true; tween(b, "p", 1, { dur: .8, e: ease.power2Out, done: () => b.tw = false }); }
+});
+document.addEventListener("pointerleave", () => tween(state.ball, "p", 0, { dur: .6 }));
+
+/* =====================================================================
+   10. 프로젝트 시트 (카드가 날아가 히어로 이미지가 되는 전환)
+   ===================================================================== */
+const sheetEl = document.getElementById("sheet"), stackEl = document.getElementById("sStack"), ringArc = document.getElementById("ringArc");
+const sheetFx = { p: 0, dim: 0 };
+function openProject(c) {
+  if (state.mode !== "home" || state.flight) return;
+  state.mode = "project";
+  document.getElementById("sTitle").textContent = c.p.title;
+  document.getElementById("sDesc").textContent = c.p.desc;
+  document.getElementById("sTags").innerHTML = [c.row.cat.name, ...c.p.tags].map(t => `<span class="pill tag">${t}</span>`).join("");
+  stackEl.innerHTML = "";
+  const hero = document.createElement("div"); hero.className = "slot hero"; hero.style.aspectRatio = CARD_W / CARD_H;
+  const hc = document.createElement("canvas"); hc.width = c.base2d.width; hc.height = c.base2d.height; hc.getContext("2d").drawImage(c.base2d, 0, 0);
+  hero.appendChild(hc); stackEl.appendChild(hero);
+  for (let k = 0; k < 4; k++) { const s = document.createElement("div"); s.className = "slot"; const cv = drawDetail(c.p, c.i, k); s.style.aspectRatio = cv.width / cv.height; s.appendChild(cv); stackEl.appendChild(s); }
+  state.col.t = state.col.a = 0; stackEl.style.transform = "";
+  sheetEl.classList.add("open"); sheetEl.setAttribute("aria-hidden", "false");
+  document.getElementById("chrome").classList.add("hide-nav");
+  history.pushState({ slug: c.p.slug }, "", "#/projects/" + c.p.slug);
+  requestAnimationFrame(() => {
+    state.col.max = Math.max(0, stackEl.scrollHeight - sheetEl.querySelector(".col").clientHeight);
+    if (!c.flyTex) c.flyTex = texCache[c.i].fly || (texCache[c.i].fly = texture(c.base2d));
+    state.flight = { card: c, from: cardScreenRect(c), p: 0 };
+    tween(state.flight, "p", 1, { dur: 1.1, e: ease.expoInOut, done: () => { hero.classList.add("landed"); state.flight.landed = true; } });
+    tween(sheetFx, "p", 1, { dur: 1.1, e: ease.expoInOut });
+    tween(sheetFx, "dim", 1, { dur: .8, e: ease.power2Out });
+  });
+}
+function closeProject() {
+  if (state.mode !== "project" || !state.flight) return;
+  const f = state.flight;
+  sheetEl.classList.remove("shown"); stackEl.querySelector(".hero").classList.remove("landed");
+  f.landed = false; f.closing = true; f.from = cardScreenRect(f.card);
+  tween(f, "p", 0, { dur: 1, e: ease.expoInOut, done: () => {
+    state.flight = null; state.mode = "home"; rows.forEach(r => r.idle = 0);
+    sheetEl.classList.remove("open"); sheetEl.setAttribute("aria-hidden", "true");
+    document.getElementById("chrome").classList.remove("hide-nav");
+  }});
+  tween(sheetFx, "p", 0, { dur: 1, e: ease.expoInOut });
+  tween(sheetFx, "dim", 0, { dur: 1, e: ease.power2Out, delay: .2 });
+  if (location.hash) history.pushState({}, "", location.pathname);
+}
+document.getElementById("sClose").addEventListener("click", closeProject);
+addEventListener("popstate", () => { if (state.mode === "project") closeProject(); });
+
+/* =====================================================================
+   11. 프로필 (블랙홀)
+   ===================================================================== */
+const disc = document.getElementById("disc"), profileBtn = document.getElementById("profileBtn");
+function toggleProfile(open) {
+  if (open && state.mode !== "home") return;
+  state.mode = open ? "profile" : "home";
+  profileBtn.textContent = open ? "Close" : "Profile";
+  profileBtn.setAttribute("aria-expanded", open);
+  document.getElementById("chrome").classList.toggle("in-profile", open);
+  if (open) { state.holeTime = 0; disc.removeAttribute("inert"); setTimeout(() => state.mode === "profile" && disc.classList.add("open"), 200); }
+  else { disc.classList.remove("open"); disc.setAttribute("inert", ""); rows.forEach(r => r.idle = 0); }
+  tween(state.hole, "p", open ? 1 : 0, { dur: open ? HOLE.open : HOLE.close, e: open ? ease.expoOut : easeInOutCubic });   // 닫힐 땐 천천히 시작해 천천히 끝남
+}
+profileBtn.addEventListener("click", e => { e.stopPropagation(); toggleProfile(state.mode !== "profile"); });
+addEventListener("click", e => {    // 원 밖 클릭 → 닫기
+  if (state.mode !== "profile" || e.target.closest("button, a")) return;
+  const r = disc.getBoundingClientRect();
+  const ex = (e.clientX - (r.left + r.width / 2)) / (r.width / 2), ey = (e.clientY - (r.top + r.height / 2)) / (r.height / 2);
+  if (ex * ex + ey * ey > 1) toggleProfile(false);   // 타원 밖 클릭 → 닫기
+});
+
+/* =====================================================================
+   12. FULL 리스트 (카테고리별로 묶어서)
+   ===================================================================== */
+const listEl = document.getElementById("list");
+document.getElementById("listItems").innerHTML = rows.map(row =>
+  `<li class="cathead"><span class="label" style="color:${row.cat.color}">${row.cat.name}</span></li>` +
+  PROJECTS.map((p, i) => p.group === row.g ? `<li data-i="${i}"><span class="n">${p.title}</span><span class="label">${p.tags.join(" · ")}</span></li>` : "").join("")
+).join("");
+listEl.addEventListener("click", e => { const li = e.target.closest("li[data-i]"); setMode("featured"); if (li) goToProject(+li.dataset.i); });
+document.querySelectorAll(".mode a").forEach(a => a.addEventListener("click", e => { e.preventDefault(); setMode(a.dataset.mode); }));
+function setMode(m) {
+  if (state.mode === "project" || state.mode === "profile") return;
+  const full = m === "full";
+  state.mode = full ? "full" : "home";
+  listEl.classList.toggle("open", full);
+  document.querySelectorAll(".mode a").forEach(a => a.classList.toggle("off", (a.dataset.mode === "full") !== full));
+  tween(state, "listP", full ? 1 : 0, { dur: .8, e: ease.expoOut });
+}
+document.getElementById("home").addEventListener("click", e => { e.preventDefault(); if (state.mode === "project") closeProject(); else if (state.mode === "profile") toggleProfile(false); else if (state.mode === "full") setMode("featured"); else if (state.mode === "home") replayIntro(); });
+
+/* =====================================================================
+   13. 레이아웃 (줄 크기·위치) & 카메라 맞춤
+   ===================================================================== */
+const LABEL_ROOM = 1.0;                    // 줄 사이 (카테고리 이름 자리)
+const arcHalf = row => (row.ps.length * (CARD_W + GAP) - GAP) * row.s / 2;   // 호 줄의 가로 반폭
+const BOTTOM_FILL = .82; // 아래 두 줄을 합친 폭이 화면 폭에서 차지하는 비율
+const MID_GAP = 1.1;     // 아래 두 줄 사이 틈
+const FILL = .79;        // 콘텐츠가 화면 높이에서 차지하는 비율 (상단 이름·하단 메뉴 사이)
+function placeTiered(top, rest, s) {
+  rest.forEach(r => r.s = s);
+  const hs = CARD_H * s, total = CARD_H + LABEL_ROOM + hs;
+  top.y = total / 2 - CARD_H / 2;
+  const halves = rest.map(arcHalf);
+  if (rest.length === 1) rest[0].x = 0;
+  else {   // 왼쪽 줄 + 틈 + 오른쪽 줄, 전체를 가운데 정렬
+    const L = halves[0] * 2, Rw = halves[1] * 2, start = -(L + MID_GAP + Rw) / 2;
+    rest[0].x = start + L / 2; rest[1].x = start + L + MID_GAP + Rw / 2;
+  }
+  rest.forEach(r => r.y = top.y - CARD_H / 2 - LABEL_ROOM - hs / 2);
+  setRadii();
+}
+// 모든 줄의 앞면을 같은 깊이(z=R)에 맞춤. 도는 줄은 큰 원통(R_LOOP)이라 좌우로 화면 밖까지 뻗음
+function setRadii() { rows.forEach(r => { r.R = (r.kind === "loop" ? R_LOOP : R) * r.s; r.z = R - r.R; }); }
+function fitCamera(wide) {
+  const th = Math.tan(FOV / 2);
+  const topY = Math.max(...rows.map(r => r.y + CARD_H * r.s / 2)) + LABEL_ROOM * .75, botY = Math.min(...rows.map(r => r.y - CARD_H * r.s / 2));
+  const needH = topY - botY, yc = (topY + botY) / 2;
+  // 가로 화면: 높이 기준 (위 줄은 좌우로 화면 밖까지) / 세로 화면: 카드 한 장 폭 기준
+  const dist = wide ? needH / FILL / 2 / th : Math.max(needH / FILL / 2 / th, CARD_W * 1.15 / .96 / 2 / th / camera.aspect);
+  let cy = yc + needH * .1, ty = yc - needH * .04;
+  // 화면에서 실제로 보이는 위끝(줄 제목)·아래끝(가장 낮은 카드)을 재서, 이름 아래 ~ 화면 바닥 사이 가운데에 오도록 카메라 높이 보정
+  const headerBottom = 84, bottomPad = 56;    // 아래쪽은 반사가 보일 자리를 조금 남김
+  for (let k = 0; k < 4; k++) {
+    camera.pos = [0, cy, R + dist]; camera.target = [0, ty, R - 2];
+    camera.viewProj = vpFrom(camera.pos, camera.target);
+    let t = 1e9, bt = -1e9;
+    for (const row of rows) {
+      const h = CARD_H * row.s / 2;
+      t = Math.min(t, project(camera.viewProj, rowPoint(row, 0, h))[1] - 40);      // 줄 제목 높이만큼 위
+      const angs = row.kind === "arc" ? row.cards.flatMap(c => [c.base - CARD_W / 2 / R, c.base, c.base + CARD_W / 2 / R]) : [0];
+      for (const a of angs) bt = Math.max(bt, project(camera.viewProj, rowPoint(row, a, -h))[1]);
+    }
+    const want = (headerBottom + view.wh - bottomPad) / 2;
+    const off = ((t + bt) / 2 - want) * (2 * dist * th / view.wh);
+    cy -= off; ty -= off;
+  }
+}
+function layoutRows() {
+  const wide = view.ww / view.wh >= 1;
+  rows.forEach(r => { r.s = 1; r.x = 0; });
+  const [top, ...rest] = rows;
+  if (LAYOUT === "tiered" && rest.length && wide) {
+    // 1번 축은 크게 위에 (좌우 끝없이), 나머지는 아래에 나란히 — 아래 묶음 폭이 화면의 BOTTOM_FILL이 되도록 크기를 맞춤
+    let s = SMALL;
+    const span = () => {
+      const half = CARD_W / 2 / R, a = rest[0], b = rest[rest.length - 1];
+      return [project(camera.viewProj, rowPoint(a, a.lo - half))[0], project(camera.viewProj, rowPoint(b, b.hi + half))[0]];
+    };
+    for (let k = 0; k < 5; k++) {
+      placeTiered(top, rest, s); fitCamera(true);
+      const [l, r] = span();
+      s = clamp(s * view.ww * BOTTOM_FILL / Math.max(1, r - l), .35, .85);
+    }
+    placeTiered(top, rest, s); fitCamera(true);
+    for (let k = 0; k < 2; k++) {   // 곡면 때문에 생기는 좌우 치우침 보정: 화면 가운데에 맞춤
+      const [l, r] = span();
+      const dx = (view.ww - (l + r)) / 2 * (2 * (camera.pos[2] - R) * Math.tan(FOV / 2) / view.wh);
+      rest.forEach(row => row.x += dx);
+    }
+    return;
+  }
+  if (LAYOUT === "tiered" && rest.length) {   // 세로 화면: 위아래로
+    rest.forEach(r => r.s = SMALL);
+    let y = 0; rows.forEach(r => { const h = CARD_H * r.s; r.y = y - h / 2; y -= h + LABEL_ROOM * (r.s < 1 ? .8 : 1); });
+    const mid = (rows[0].y + CARD_H / 2 + rows[rows.length - 1].y - CARD_H * SMALL / 2) / 2; rows.forEach(r => r.y -= mid);
+  } else {
+    rows.forEach((r, k) => r.y = (rows.length - 1) / 2 * (CARD_H + LABEL_ROOM) - k * (CARD_H + LABEL_ROOM));
+  }
+  setRadii();
+  fitCamera(wide);
+}
+
+/* =====================================================================
+   13. 리사이즈
+   ===================================================================== */
+let sceneRT, reflRT, mirRT, mirTopRT;
+function resize() {
+  view.ww = innerWidth; view.wh = innerHeight; view.dpr = Math.min(2, devicePixelRatio);
+  view.small = view.ww <= 800;
+  canvas.width = Math.round(view.ww * view.dpr); canvas.height = Math.round(view.wh * view.dpr);
+  camera.aspect = view.ww / view.wh;
+  layoutRows();
+  // 바닥: 맨 아래 줄 밑. 반사용 카메라는 바닥 아래로 뒤집은 위치 (가짜 반사)
+  FLOOR.y = Math.min(...rows.map(r => r.y - CARD_H * r.s / 2)) - .12;   // 카드 바로 아래 (반사가 카드에 붙어 보이게)
+  const m = FLOOR.y - FLOOR.reflGap;
+  // 바닥면(y = m)을 기준으로 위아래를 뒤집는 진짜 거울 반사
+  state.reflVP = mul(camera.viewProj, new Float32Array([1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1, 0, 0, 2 * m, 0, 1]));
+  if (!sceneRT) { sceneRT = target(canvas.width, canvas.height); reflRT = target(8, 8); mirRT = target(8, 8); mirTopRT = target(8, 8); trailA = target(trailW, trailH, { float: true }); trailB = target(trailW, trailH, { float: true }); }
+  sceneRT.resize(canvas.width, canvas.height);
+  reflRT.resize(Math.max(1, Math.round(canvas.width * FLOOR.reflRes)), Math.max(1, Math.round(canvas.height * FLOOR.reflRes)));
+  mirRT.resize(Math.max(1, Math.round(canvas.width * .35)), Math.max(1, Math.round(canvas.height * .35)));
+  mirTopRT.resize(mirRT.w, mirRT.h);
+  // 위 줄 반사용 거울면: 위 줄 아래 끝 바로 밑
+  const tm = rows[0].y - CARD_H * rows[0].s / 2 - .08;
+  state.topVP = mul(camera.viewProj, new Float32Array([1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1, 0, 0, 2 * tm, 0, 1]));
+  state.topEdge = (view.wh - project(camera.viewProj, rowPoint(rows[0], 0, -CARD_H * rows[0].s / 2 - .08))[1]) * (sceneRT.h / view.wh);
+  trailH = Math.max(1, Math.round(trailW * view.wh / view.ww)); trailA.resize(trailW, trailH); trailB.resize(trailW, trailH); trailFresh = false;
+  if (state.mode === "project") state.col.max = Math.max(0, stackEl.scrollHeight - sheetEl.querySelector(".col").clientHeight);
+}
+addEventListener("resize", resize);
+addEventListener("resize", () => { if (!intro.done) buildIntro(); });
+
+/* =====================================================================
+   14. 그리기
+   ===================================================================== */
+const ndcRect = r => ({ x: (r.left + r.width / 2) / view.ww * 2 - 1, y: 1 - (r.top + r.height / 2) / view.wh * 2, sx: r.width / view.ww * 2, sy: r.height / view.wh * 2 });
+function drawCard(vp, tex, { card = null, cylP = 1, rect = null, hover = 0, shade = 1, white = 0, alpha = 1, corner = .16 / CARD_H, aspect = CARD_W / CARD_H, reveal = state.reveal }) {
+  const u = cardProg.u;
+  gl.uniformMatrix4fv(u.uVP, false, vp);
+  const row = card ? card.row : null, s = row ? row.s : 1;
+  gl.uniform1f(u.uAngle, card ? angleOf(card) : 0); gl.uniform1f(u.uY, row ? row.y : 0);
+  gl.uniform2f(u.uCenter, row ? row.x : 0, row ? row.z : 0); gl.uniform1f(u.uS, s);
+  gl.uniform1f(u.uR, row ? row.R : R); gl.uniform1f(u.uVel, row ? row.vel : 0); gl.uniform1f(u.uTime, state.time);
+  gl.uniform2f(u.uSize, CARD_W * s, CARD_H * s);
+  gl.uniform1f(u.uCyl, card ? cylP : 0);
+  const n = rect ? ndcRect(rect) : { x: 0, y: 0, sx: 0, sy: 0 };
+  gl.uniform2f(u.uNdcPos, n.x, n.y); gl.uniform2f(u.uNdcScale, n.sx, n.sy);
+  gl.uniform1f(u.uHover, hover); gl.uniform1f(u.uReveal, reveal); gl.uniform1f(u.uShade, shade);
+  gl.uniform3fv(u.uCam, camera.pos);
+  gl.uniform1f(u.uWhite, white); gl.uniform1f(u.uAlpha, alpha); gl.uniform1f(u.uAspect, aspect); gl.uniform1f(u.uCorner, corner);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tex); gl.uniform1i(u.uTex, 0);
+  cardGeo.draw();
+}
+function drawCarousel(vp, only = null) {
+  gl.useProgram(cardProg.p);
+  gl.enable(gl.CULL_FACE);   // 원통 뒷면은 컬링
+  const fl = state.flight;
+  // 뒤에서 앞 순서로 그려야 둥근 모서리 블렌딩이 깔끔
+  const order = cards.map(c => [c, Math.cos(angleOf(c))]).sort((a, b) => a[1] - b[1]);
+  for (const [c, front] of order) {
+    if (front < -0.35 || (fl && fl.card === c) || (only && c.row !== only)) continue;
+    drawCard(vp, c.tex, { card: c, hover: c.hover });
+  }
+  gl.disable(gl.CULL_FACE);
+}
+function drawFloor(alpha) {
+  if (view.small || alpha < .005) return;
+  const u = floorProg.u, near = camera.pos[2] - R, run = FLOOR.run;
+  gl.useProgram(floorProg.p);
+  gl.uniformMatrix4fv(u.uVP, false, camera.viewProj);
+  gl.uniform3f(u.uPos, 0, FLOOR.y, R + (near - run) / 2); gl.uniform3f(u.uScale, FLOOR.width, 1, near + run);
+  gl.uniform1f(u.uRun, run); gl.uniform1f(u.uZ0, R);
+  gl.uniform3fv(u.uTint, state.tint);
+  gl.uniform1f(u.uAlpha, alpha); gl.uniform1f(u.uGrid, FLOOR.grid); gl.uniform2f(u.uGridF, FLOOR.width / FLOOR.cell, run / FLOOR.cell);
+  gl.uniformMatrix4fv(u.uReflVP, false, state.reflVP); gl.uniform2f(u.uRes, sceneRT.w, sceneRT.h);
+  const halfW = (camera.pos[2] - R) * Math.tan(FOV / 2) * camera.aspect;
+  gl.uniform1f(u.uReflA, FLOOR.refl); gl.uniform1f(u.uReflSpread, FLOOR.reflSpread); gl.uniform1f(u.uReflLX, -halfW * FLOOR.reflLight);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, reflRT.tex); gl.uniform1i(u.uRefl, 0);
+  gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, mirRT.tex); gl.uniform1i(u.uMirror, 1);
+  gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, mirTopRT.tex); gl.uniform1i(u.uMirTop, 2); gl.activeTexture(gl.TEXTURE0);
+  gl.uniform1f(u.uTopEdge, state.topEdge); gl.uniform1f(u.uTopReach, sceneRT.h * .07);
+  floorGeo.draw();
+}
+function fsQuad(prog, set) { gl.useProgram(prog.p); set(prog.u); quad.draw(); }
+
+function render(dt) {
+  gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.disable(gl.DEPTH_TEST);
+
+  // (1) 반사 패스: 카드만, 바닥 아래 카메라에서 1/10 해상도
+  if (!view.small) {
+    gl.bindFramebuffer(gl.FRAMEBUFFER, reflRT.fb); gl.viewport(0, 0, reflRT.w, reflRT.h);
+    gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT);
+    drawCarousel(camera.viewProj);   // 바닥 빛용: 카드들을 낮은 해상도로 한 번 더 그림
+    // 거울 반사용: 바닥면 기준으로 뒤집은 시점에서 카드를 그림
+    gl.bindFramebuffer(gl.FRAMEBUFFER, mirRT.fb); gl.viewport(0, 0, mirRT.w, mirRT.h);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.frontFace(gl.CW); rows.slice(1).forEach(r => drawCarousel(state.reflVP, r));
+    gl.bindFramebuffer(gl.FRAMEBUFFER, mirTopRT.fb); gl.clear(gl.COLOR_BUFFER_BIT);
+    drawCarousel(state.topVP, rows[0]); gl.frontFace(gl.CCW);
+  }
+
+  // (2) 씬
+  gl.bindFramebuffer(gl.FRAMEBUFFER, sceneRT.fb); gl.viewport(0, 0, sceneRT.w, sceneRT.h);
+  gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT);
+  drawFloor(state.floorA * (1 - state.listP));
+  fsQuad(veilProg, u => gl.uniform1f(u.uAlpha, 1));
+  if (state.listP < .999) drawCarousel(camera.viewProj);
+  if (state.listP > .001) fsQuad(dimProg, u => gl.uniform1f(u.uAlpha, state.listP * .85));
+
+  // 프로젝트 시트: 어둡게 + 흰 패널이 카드 자리에서 펼쳐짐 + 카드가 원통에서 히어로 자리로 비행
+  const f = state.flight;
+  if (sheetFx.dim > .001) fsQuad(dimProg, u => gl.uniform1f(u.uAlpha, sheetFx.dim * .55));
+  if (f) {
+    gl.useProgram(cardProg.p);
+    const panel = sheetEl.getBoundingClientRect(), e = sheetFx.p, from = f.from;
+    const pr = { left: lerp(from.left, panel.left, e), top: lerp(from.top, panel.top, e), width: lerp(from.width, panel.width, e), height: lerp(from.height, panel.height, e) };
+    drawCard(camera.viewProj, blank, { rect: pr, shade: 0, white: 1, alpha: Math.min(1, e * 4), aspect: pr.width / pr.height, corner: lerp(.07, 15 / Math.max(pr.height, 1), e), reveal: 1 });
+    if (!f.landed) {
+      const hr = stackEl.querySelector(".hero").getBoundingClientRect(), p = f.p;
+      const r = { left: lerp(from.left, hr.left, p), top: lerp(from.top, hr.top, p), width: lerp(from.width, hr.width, p), height: lerp(from.height, hr.height, p) };
+      drawCard(camera.viewProj, p > .5 ? f.card.flyTex : f.card.tex, { card: f.card, cylP: 1 - p, rect: r, shade: 1 - p, corner: lerp(.16 / CARD_H, 0, p), reveal: 1 });
+    }
+  }
+
+  // (3) 커서 높이장 갱신
+  const b = state.ball, ballOn = false;   // 커서 밑 물결 효과 끔 (켜려면 mouseCapable && !view.small)
+  if (ballOn) {
+    if (!trailFresh) { for (const t of [trailA, trailB]) { gl.bindFramebuffer(gl.FRAMEBUFFER, t.fb); gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT); } trailFresh = true; }
+    const sp = Math.hypot(b.x - b.px, (b.y - b.py) * view.wh / view.ww) / Math.max(dt, 1e-3);
+    b.px = b.x; b.py = b.y; b.e = lerp(b.e, Math.min(sp * .25, 1), 1 - Math.exp(-8 * dt));
+    gl.disable(gl.BLEND);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, trailB.fb); gl.viewport(0, 0, trailW, trailH);
+    fsQuad(trailProg, u => {
+      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, trailA.tex); gl.uniform1i(u.uPrev, 0);
+      gl.uniform2f(u.uTexel, 1 / trailW, 1 / trailH); gl.uniform2f(u.uPos, b.x, b.y);
+      gl.uniform1f(u.uDecay, Math.exp(-BALL.decay * dt)); gl.uniform1f(u.uDiff, 1 - Math.exp(-BALL.diffuse * dt));
+      gl.uniform1f(u.uAmp, b.e * b.p * .35); gl.uniform1f(u.uRad, BALL.rad); gl.uniform1f(u.uAspect, view.ww / view.wh);
+    });
+    [trailA, trailB] = [trailB, trailA];
+    gl.enable(gl.BLEND);
+  }
+
+  // (4) 합성 → 화면 (블랙홀 렌즈 + 커서 볼)
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, canvas.width, canvas.height);
+  gl.disable(gl.BLEND);
+  const dr = disc.getBoundingClientRect();
+  fsQuad(postProg, u => {
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, sceneRT.tex); gl.uniform1i(u.uScene, 0);
+    gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, trailA.tex); gl.uniform1i(u.uTrail, 1);
+    gl.uniform2f(u.uAspect, view.ww / view.wh, 1);
+    gl.uniform2f(u.uCenter, (dr.left + dr.width / 2) / view.ww, 1 - (dr.top + dr.height / 2) / view.wh);
+    gl.uniform1f(u.uTime, state.holeTime); gl.uniform1f(u.uP, state.hole.p);
+    gl.uniform1f(u.uRadius, dr.height / 2 / view.ww); gl.uniform1f(u.uEx, dr.width / Math.max(dr.height, 1));
+    gl.uniform1f(u.uLens, HOLE.lens); gl.uniform1f(u.uReach, HOLE.reach); gl.uniform1f(u.uOrbit, HOLE.orbit);
+    gl.uniform1f(u.uWave, HOLE.wave); gl.uniform1f(u.uAberr, HOLE.aberr); gl.uniform1f(u.uBreath, HOLE.breath);
+    const c = 1 - state.hole.p;
+    gl.uniform1f(u.uBallA, ballOn ? b.p : 0); gl.uniform1f(u.uBallWarp, BALL.warp * c); gl.uniform1f(u.uBallShade, BALL.shade * c);
+    gl.uniform2f(u.uBallEdge, BALL.edge[0], BALL.edge[1]); gl.uniform2f(u.uTrailTexel, 1 / trailW, 1 / trailH);
+  });
+}
+
+
+/* =====================================================================
+   인트로 — 흰 화면의 "Portfolio." 마침표 안으로 들어가는 진입 연출
+   ===================================================================== */
+const INTRO = { word: "Portfolio", length: 2.2 /* 몇 화면 높이만큼 스크롤해야 다 들어가는지 */, ease: .085 };
+const introEl = document.getElementById("intro"), introSvg = document.getElementById("introSvg");
+const intro = { t: 0, p: 0, done: false, swung: false, geo: null };
+const NS = "http://www.w3.org/2000/svg";
+function buildIntro() {
+  const W = view.ww, H = view.wh;
+  introSvg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  introSvg.innerHTML = "";
+  const size = Math.min(W * .175, H * .34);
+  // 글자 폭을 재서 가운데 정렬 (마침표 포함)
+  const probe = document.createElementNS(NS, "text");
+  probe.setAttribute("font-family", "Inter Tight, system-ui, sans-serif"); probe.setAttribute("font-weight", "600");
+  probe.setAttribute("font-size", size); probe.setAttribute("letter-spacing", -size * .055); probe.textContent = INTRO.word;
+  introSvg.appendChild(probe);
+  const len = probe.getComputedTextLength();
+  introSvg.removeChild(probe);
+  const r = size * .088, gap = size * .045, total = len + gap + r * 2;
+  const x0 = (W - total) / 2, base = H / 2 + size * .36;
+  const cx = x0 + len + gap + r, cy = base - r;
+  introSvg.innerHTML = `
+    <defs><mask id="introHole" maskUnits="userSpaceOnUse" x="-1e5" y="-1e5" width="2e5" height="2e5">
+      <rect x="-1e5" y="-1e5" width="2e5" height="2e5" fill="#fff"/>
+      <circle cx="${cx}" cy="${cy}" r="${r}" fill="#000"/>
+    </mask></defs>
+    <g mask="url(#introHole)">
+      <rect x="-1e5" y="-1e5" width="2e5" height="2e5" fill="#fff"/>
+      <text x="${x0}" y="${base}" font-family="Inter Tight, system-ui, sans-serif" font-weight="600" font-size="${size}"
+        letter-spacing="${-size * .055}" fill="#0a0a0a">${INTRO.word}</text>
+    </g>`;
+  introSvg.style.transformOrigin = `${cx}px ${cy}px`;
+  // 마침표가 화면 대각선을 다 덮을 만큼 확대
+  intro.geo = { cx, cy, r, max: Math.hypot(W, H) / r * 1.15 };
+}
+const easeInOutCubic = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+function introInput(d) { if (!intro.done) intro.t = clamp(intro.t + d / (view.wh * INTRO.length), 0, 1); }
+addEventListener("wheel", e => { if (state.mode === "intro") { e.preventDefault(); introInput(e.deltaY); } }, { passive: false });
+let introTouch = null;
+introEl.addEventListener("touchstart", e => { introTouch = e.touches[0].clientY; }, { passive: true });
+introEl.addEventListener("touchmove", e => { const y = e.touches[0].clientY; introInput((introTouch - y) * 2.2); introTouch = y; }, { passive: true });
+introEl.addEventListener("click", () => { intro.t = 1; });            // 클릭해도 들어감
+addEventListener("keydown", e => {
+  if (state.mode !== "intro") return;
+  if (["ArrowDown", "PageDown", " ", "Enter"].includes(e.key)) { e.preventDefault(); intro.t = Math.min(1, intro.t + .34); }
+  if (["ArrowUp", "PageUp"].includes(e.key)) { e.preventDefault(); intro.t = Math.max(0, intro.t - .34); }
+});
+function replayIntro() {   // 이름을 누르면 다시 인트로로 (거꾸로 빠져나옴)
+  intro.done = false; intro.t = 0; intro.swung = false;
+  introEl.classList.remove("gone"); state.mode = "intro";
+  document.getElementById("chrome").classList.add("hide-nav");
+}
+function stepIntro(dt) {
+  if (intro.done || !intro.geo) return;
+  intro.p += (intro.t - intro.p) * (1 - Math.pow(1 - INTRO.ease, dt * 60));
+  if (Math.abs(intro.t - intro.p) < 1e-4) intro.p = intro.t;
+  const e = easeInOutCubic(intro.p), g = intro.geo;
+  const s = Math.exp(Math.log(g.max) * e);
+  const k = Math.min(1, e * 1.4);                                     // 확대되며 마침표가 화면 가운데로
+  introSvg.style.transform = `translate(${(view.ww / 2 - g.cx) * k}px, ${(view.wh / 2 - g.cy) * k}px) scale(${s})`;
+  introEl.querySelector(".hint").style.opacity = 1 - Math.min(1, intro.p * 8);
+  introEl.querySelector(".corner").style.opacity = 1 - clamp((intro.p - .55) / .35, 0, 1);   // 거의 다 들어갈 때까지 남아 있다가 사라짐
+  // 마침표 너머 공간도 같이 다가옴 (뒤에서 앞으로)
+  canvas.style.transform = `scale(${1 + .5 * (1 - e)})`;
+  if (!intro.swung && intro.p > .45) {                                 // 반쯤 들어가면 카드들이 돌며 들어옴
+    intro.swung = true;
+    rows.forEach(r => { r.current += r.kind === "loop" ? -1.4 : .7; });
+  }
+  if (intro.p > .985 && intro.t >= 1) {                              // 다 들어감 → 홈
+    intro.done = true; intro.p = 1;
+    introEl.classList.add("gone"); canvas.style.transform = "";
+    state.mode = "home";
+    document.getElementById("chrome").classList.remove("hide-nav");
+  }
+}
+
+/* =====================================================================
+   15. 루프
+   ===================================================================== */
+let lastNow = 0;
+function tick(now) {
+  requestAnimationFrame(tick);
+  const dt = Math.min((now - (lastNow || now - 16.7)) / 1000, 0.05); lastNow = now;
+  state.time += dt; if (state.hole.p > 5e-4) state.holeTime += dt;
+  stepTweens(dt);
+
+  for (const row of rows) {
+    // 가만히 있으면 아주 천천히 흐름 (홈에서만, 줄마다 번갈아 반대 방향)
+    row.idle += dt;
+    const held = state.drag && state.drag.row === row;
+    if (row.kind === "loop" && state.mode === "home" && !held && row.idle > 3) { row.target += row.drift * dt * 0.035; row.raw = row.target; }
+    // 기존 버전과 같은 관성: 프레임레이트 무관 lerp → 속도 → 휘어짐
+    const prev = row.current;
+    row.current += (row.target - row.current) * (1 - Math.pow(0.0009, dt));
+    const v = clamp((row.current - prev) / Math.max(dt, 1e-3) * 0.35, -1, 1);
+    row.vel += (v - row.vel) * 0.12;
+  }
+  stepIntro(dt);
+  state.reveal = Math.min(1, state.reveal + dt * 0.8);
+
+  // 호버: 원통 피킹
+  const hit = state.mode === "home" && !state.drag && mouseCapable ? pick(state.mouse.x, state.mouse.y) : null;
+  if (hit !== state.hovered) { state.hovered = hit; canvas.style.cursor = hit ? "pointer" : ""; }
+  cards.forEach(c => { c.hover += ((c === hit ? 1 : 0) - c.hover) * 0.1; });
+
+  // 지금 다루고 있는 줄: 마우스가 올라간 줄 → 없으면 마지막으로 만진 줄
+  const over = state.mode === "home" && state.mouse.x >= 0 ? rowAt(state.mouse.x, state.mouse.y) : null;
+  const act = state.drag ? rows.indexOf(state.drag.row) : over ? rows.indexOf(over) : state.activeRow;
+  const tc = hexRGB(rows[act].cat.color), k = 1 - Math.exp(-4 * dt);
+  for (let j = 0; j < 3; j++) state.tint[j] += (tc[j] - state.tint[j]) * k;
+
+  // 줄 이름 라벨: 줄의 왼쪽 위에 고정 (쌓기 레이아웃은 왼쪽 끝을 맞춤)
+  const pts = rows.map(row => {
+    const a = row.kind === "arc" ? row.lo - CARD_W / 2 / R : -.9;
+    return project(camera.viewProj, rowPoint(row, a, CARD_H * row.s / 2));
+  });
+  const minX = Math.min(...pts.filter((q, g) => rows[g].kind === "arc").map(q => q[0]), view.ww);
+  rows.forEach((row, g) => {
+    const arcXs = rows.filter(r2 => r2.kind === "arc").map(r2 => pts[rows.indexOf(r2)][0]);
+    // 도는 줄은 끝이 화면 밖이라 아래 줄 왼쪽 끝에 맞춰 정렬
+    const x = row.kind === "loop" ? (arcXs.length ? Math.min(...arcXs) : 50) : LAYOUT === "tiered" ? pts[g][0] : minX;
+    // 같은 높이의 줄들은 라벨 높이도 맞춤 (가장 높은 쪽 기준)
+    const same = rows.filter(r2 => Math.abs(r2.y - row.y) < 1e-3);
+    const topY = Math.min(...same.map((r2, j) => Math.min(project(camera.viewProj, rowPoint(r2, 0, CARD_H * r2.s / 2))[1], pts[rows.indexOf(r2)][1])));
+    labels[g].style.transform = `translate3d(${Math.round(clamp(x, 16, view.ww - 160))}px, ${Math.round(Math.min(pts[g][1], topY) - (view.small ? 30 : 34))}px, 0)`;
+    labels[g].classList.toggle("dim", g !== act);
+  });
+
+  // 시트: 비행이 60% 지나면 내용 등장, 이미지 컬럼 스크롤
+  if (state.mode === "project" && state.flight && !state.flight.closing && state.flight.p > .6) sheetEl.classList.add("shown");
+  if (state.mode === "project" && !view.small) {
+    state.col.a = damp(state.col.a, state.col.t, COL_EASE, Math.min(dt * 60, 2));
+    stackEl.style.transform = `translate3d(0,${-state.col.a}px,0)`;
+    ringArc.setAttribute("stroke-dashoffset", 69.1 * (1 - (state.col.max ? state.col.a / state.col.max : 0)));
+  }
+  render(dt);
+}
+
+/* 폰트 로드 후 텍스처 생성 (캔버스 텍스트가 폴백 폰트로 그려지지 않도록) */
+Promise.race([
+  Promise.all(['800 40px "Inter Tight"', '500 40px "Inter Tight"', '400 40px "Instrument Serif"', 'italic 40px "Instrument Serif"'].map(f => document.fonts.load(f))),
+  new Promise(r => setTimeout(r, 2500)),
+]).then(() => {
+  resize();
+  buildTextures();
+  tween(state, "floorA", FLOOR.alpha, { dur: 1.5, e: ease.power2Out, delay: .3 });
+  buildIntro(); document.getElementById("chrome").classList.add("hide-nav");
+  document.getElementById("loader").classList.add("hide");
+  requestAnimationFrame(tick);
+});
+</script>
+</body>
+</html>
