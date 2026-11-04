@@ -6,12 +6,14 @@
 <title>Portfolio</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<!-- 한글: Pretendard (영문은 Inter Tight, 한글 글자만 Pretendard로 표시) -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;800&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
 <style>
   :root { --bg:#000; --fg:#fff; --pad-x:50px; --pad-y:25px; }
   * { box-sizing:border-box; margin:0; padding:0; }
   html, body { height:100%; background:var(--bg); color:var(--fg); overflow:hidden; }
-  body { font-family:"Inter Tight", system-ui, sans-serif; -webkit-font-smoothing:antialiased; overscroll-behavior:none; }
+  body { font-family:"Inter Tight", "Pretendard Variable", Pretendard, system-ui, sans-serif; -webkit-font-smoothing:antialiased; overscroll-behavior:none; }
   html.grabbable, html.grabbable * { cursor:grab; }
   html.grabbing, html.grabbing * { cursor:grabbing !important; user-select:none; }
 
@@ -100,37 +102,77 @@
   #disc.open .cols > div:nth-child(1) { transition-delay:.12s; } #disc.open .cols > div:nth-child(2) { transition-delay:.18s; } #disc.open .cols > div:nth-child(3) { transition-delay:.24s; }
   #disc a:hover { opacity:.6; }
 
-  /* ---------- 프로젝트 시트 (흰 배경은 WebGL이 그림, DOM은 내용만) ---------- */
+  /* ---------- 프로젝트 시트 (흰 배경은 WebGL이 그림, DOM은 내용만) ----------
+     위: 제목·태그 | 설명   /   아래: 큰 메인 영상(왼쪽) | 스틸컷 세로 스크롤(오른쪽) */
   #sheet {
     position:fixed; top:20px; bottom:20px; left:50px; right:50px; z-index:20;
-    display:flex; gap:40px; padding:24px 72px 0 24px; color:#000; pointer-events:none; visibility:hidden;
+    display:grid; grid-template-columns:minmax(0, 1fr) minmax(240px, 26%); grid-template-rows:auto auto minmax(0, 1fr);
+    gap:22px 22px; padding:26px; color:#000; pointer-events:none; visibility:hidden;
   }
   #sheet.open { visibility:visible; pointer-events:auto; }
-  #sheet .info { flex:1; min-width:0; }
-  #sheet h1 { font-size:45px; font-weight:400; line-height:1; letter-spacing:-.05em; white-space:nowrap; }
-  #sheet .desc { margin-top:20px; max-width:40rem; font-size:16px; line-height:1.25; letter-spacing:-.035em; }
-  #sheet .pills { margin-top:45px; display:flex; align-items:center; gap:12px; }
+  /* 왼쪽 열: 제목 → 큰 영상 → 태그·설명 / 오른쪽 열: 스틸컷 (패널 전체 높이) */
+  #sheet .info { display:contents; }
+  #sheet .info .left { grid-column:1; grid-row:1; min-width:0; }
+  /* 영상 아래: 태그 한 줄 → 그 아래 설명, 영상 왼쪽 끝에 맞춰 정렬 */
+  #sheet .meta { grid-column:1; grid-row:3; display:flex; flex-direction:column; align-items:flex-start; gap:14px; }
+  #sheet h1 { font-size:45px; font-weight:400; line-height:1.12; padding-bottom:.04em; letter-spacing:-.05em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #sheet .desc { font-family:"Pretendard Variable", Pretendard, "Inter Tight", system-ui, sans-serif; font-size:15px; font-weight:400; line-height:1.65; letter-spacing:-.01em; color:#1a1a1a; word-break:keep-all; white-space:pre-line; text-wrap:pretty; }   /* 문장 단위로 줄바꿈, 단어 중간에서 끊지 않음 */
+  #sheet .pills { display:flex; align-items:center; gap:12px; }
   #sheet .pill { display:inline-flex; align-items:center; height:2em; border-radius:999px; font-size:10px; }
-  #sheet .pill.round { aspect-ratio:1; justify-content:center; background:#000; color:#fff; }
   #sheet .pill.tag { padding:0 1.25em; background:#eee; }
-  #sheet .tags { display:flex; gap:2px; }
-  #sheet .col { width:min(700px, 52%); flex:none; height:100%; overflow:hidden; position:relative; }
-  #sheet .stack { display:flex; flex-direction:column; gap:60px; padding-bottom:80px; will-change:transform; }
-  #sheet .slot { width:100%; flex:none; overflow:hidden; opacity:0; transform:translateY(40px); transition:opacity .6s, transform 1.2s cubic-bezier(.16,1,.3,1); }
+  #sheet .tags { display:flex; gap:2px; flex-wrap:wrap; }
+  #sheet .main { grid-column:1; grid-row:2; min-height:0; }
+  #sheet .scroll { display:contents; }
+  #sheet.nostills .col { display:none; }
+  /* 갤러리형 (Visual Works): 제목·설명 → 큰 대표 이미지 → 이미지 줄들, 아래로 스크롤 */
+  #sheet.gallery { display:block; overflow:hidden; padding:0;
+    -webkit-mask-image:linear-gradient(to bottom, transparent 0, #000 6px, #000 calc(100% - 46px), transparent 100%); mask-image:linear-gradient(to bottom, transparent 0, #000 6px, #000 calc(100% - 46px), transparent 100%); }
+  #sheet.gallery .scroll { display:flex; flex-direction:column; gap:30px; padding:34px clamp(48px, 9vw, 160px) 110px; will-change:transform; }   /* 좌우 여백 넉넉하게 */
+  #sheet.gallery .main { gap:18px; } #sheet .grow-row { gap:18px; }
+  @media (max-width:800px) { #sheet.gallery .scroll { padding:24px 16px 60px; gap:22px; } #sheet.gallery .main, #sheet .grow-row { gap:10px; } }
+  #sheet.gallery .info .left { padding-right:60px; }
+  #sheet.gallery .meta { order:2; max-width:760px; margin-top:-8px; }
+  #sheet.gallery .slot.hero { width:100%; }
+  #sheet.gallery .main { order:3; display:flex; flex-direction:column; gap:14px; }
+  #sheet.gallery .col { display:none; }
+  #sheet.gallery .close { position:absolute; }
+  #sheet .grow-row { display:flex; gap:14px; }
+  #sheet .ggap.gap { height:48px; } #sheet .ggap.gap-s { height:16px; }
+  @media (max-width:800px) { #sheet .ggap.gap { height:26px; } #sheet .ggap.gap-s { height:8px; } }
+  #sheet .grow-row .slot { flex-basis:0; min-width:0; }
+  #sheet .grow-row .slot img { object-fit:cover; }
+  #sheet .stack .slot { background:#e6e6e6; }   /* GIF가 늦게 뜰 때 빈칸 대신 회색 */
+  #sheet.nostills .meta { grid-column:2; grid-row:2; padding-top:2px; }
+  #sheet .col { grid-column:2; grid-row:1 / -1; min-height:0; overflow:hidden; position:relative; margin-top:44px; border-radius:4px;
+    -webkit-mask-image:linear-gradient(#000 88%, transparent); mask-image:linear-gradient(#000 88%, transparent); }   /* 아래로 더 있다는 걸 살짝 흐려서 암시 */
+  #sheet .stack { display:flex; flex-direction:column; gap:14px; padding-bottom:40px; will-change:transform; }
+  #sheet .slot { width:100%; flex:none; overflow:hidden; border-radius:4px; opacity:0; transform:translateY(40px); transition:opacity .6s, transform 1.2s cubic-bezier(.16,1,.3,1); }
   #sheet.shown .slot { opacity:1; transform:none; }
-  #sheet .slot.hero { opacity:1; transform:none; transition:none; }
-  #sheet .slot canvas { display:block; width:100%; height:100%; }
-  #sheet .slot.hero canvas { visibility:hidden; }
-  #sheet .slot.hero.landed canvas { visibility:visible; }
+  #sheet .stack .slot:nth-child(2) { transition-delay:.05s; } #sheet .stack .slot:nth-child(3) { transition-delay:.1s; } #sheet .stack .slot:nth-child(4) { transition-delay:.15s; }
+  #sheet .slot.hero { opacity:1; transform:none; transition:none; position:relative; border-radius:6px;
+    width:min(100%, calc((100vh - 270px) * var(--ar, 1.778))); }   /* 화면 높이 안에서 최대한 크게 */
+  #sheet .slot canvas, #sheet .slot video, #sheet .slot img { display:block; width:100%; height:100%; object-fit:cover; }
+  #sheet .slot video { background:#000; }
+  #sheet .slot.hero > * { visibility:hidden; }
+  #sheet .slot.hero.landed > * { visibility:visible; }
+  /* 재생 버튼 (직접 눌러야 재생) */
+  #sheet .play { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px;
+    border:0; padding:0; cursor:pointer; color:#fff; background:radial-gradient(ellipse at center, rgba(0,0,0,.08), rgba(0,0,0,.42));
+    transition:opacity .4s; }
+  #sheet .play i { width:78px; height:78px; border-radius:50%; background:rgba(255,255,255,.92); display:grid; place-items:center;
+    transition:transform .5s cubic-bezier(.16,1,.3,1), background .3s; box-shadow:0 10px 40px rgba(0,0,0,.25); }
+  #sheet .play i::before { content:""; margin-left:5px; border-left:20px solid #0a0a0a; border-top:12px solid transparent; border-bottom:12px solid transparent; }
+  #sheet .play span { font-size:11px; font-weight:500; letter-spacing:.14em; text-transform:uppercase; }
+  #sheet .play:hover i { transform:scale(1.08); background:#fff; }
+  #sheet .play.off { opacity:0; pointer-events:none; }
   #sheet .close {
-    position:absolute; top:18px; right:18px; width:27px; height:27px; border-radius:50%;
+    position:absolute; top:22px; right:22px; width:27px; height:27px; border-radius:50%;
     background:#000; color:#fff; display:grid; place-items:center; font-size:14px;
   }
-  #sheet .ring { position:absolute; left:30px; bottom:30px; width:25px; height:25px; }
+  #sheet .ring { display:none; }
   #sheet .fade { opacity:0; transform:translateY(10px); transition:opacity .5s, transform .9s cubic-bezier(.16,1,.3,1); }
   #sheet.shown .fade { opacity:1; transform:none; }
   #sheet.shown .info .fade:nth-child(2) { transition-delay:.06s; }
-  #sheet.shown .info .fade:nth-child(3) { transition-delay:.12s; }
 
   /* ---------- FULL 리스트 ---------- */
   #list {
@@ -174,12 +216,18 @@
     #disc .foot { flex-wrap:wrap; gap:10px 16px; }
     #track { height:auto; max-height:none; }
     #track article { width:calc(100vw - 40px); height:auto; border-radius:15px; }
-    #sheet .ring { display:none; }
-    #sheet { left:20px; right:20px; top:15px; bottom:15px; flex-direction:column; overflow-y:auto; padding:40px 15px 0; gap:40px; }
-    #sheet h1 { font-size:35px; }
-    #sheet .col { width:100%; height:auto; overflow:visible; }
-    #sheet { padding-right:15px; }
-    #sheet .stack { gap:30px; transform:none !important; }
+    /* 모바일: 제목 → 설명 → 영상 → 스틸컷 순으로 세로로 */
+    #sheet { left:12px; right:12px; top:12px; bottom:12px; display:flex; flex-direction:column; overflow-y:auto; padding:22px 16px 30px; gap:22px; }
+    #sheet .info { display:flex; flex-direction:column; align-items:stretch; gap:14px; padding-right:40px; }
+    #sheet > * { flex:none; }
+    #sheet .meta { display:flex; flex-direction:column; gap:14px; }
+    #sheet .col { margin-top:0; }
+    #sheet h1 { font-size:32px; white-space:normal; }
+    #sheet .main { display:block; }
+    #sheet .slot.hero { width:100%; }
+    #sheet .col { height:auto; overflow:visible; }
+    #sheet .stack { gap:12px; transform:none !important; padding-bottom:0; }
+    #sheet .play i { width:62px; height:62px; }
   }
 </style>
 </head>
@@ -227,15 +275,17 @@
   </div>
 
   <div id="sheet" aria-hidden="true">
+    <div class="scroll" id="sScroll">
     <div class="info">
-      <h1 class="fade" id="sTitle">Project</h1>
-      <p class="desc fade" id="sDesc"></p>
-      <div class="pills fade">
-        <a class="pill round" href="#" target="_blank" rel="noopener" aria-label="Visit site">↗</a>
-        <div class="tags" id="sTags"></div>
-      </div>
+      <div class="left fade"><h1 id="sTitle">Project</h1></div>
+    </div>
+    <div class="main" id="sMain"></div>
+    <div class="meta fade">
+      <div class="pills"><div class="tags" id="sTags"></div></div>
+      <p class="desc" id="sDesc"></p>
     </div>
     <div class="col"><div class="stack" id="sStack"></div></div>
+    </div>
     <svg class="ring fade" viewBox="0 0 25 25"><circle cx="12.5" cy="12.5" r="11" fill="none" stroke="#000" stroke-width="2" opacity=".15"/><circle id="ringArc" cx="12.5" cy="12.5" r="11" fill="none" stroke="#000" stroke-width="2" stroke-dasharray="69.1" stroke-dashoffset="69.1" transform="rotate(-90 12.5 12.5)"/></svg>
     <button class="close fade" id="sClose" type="button" aria-label="Close">✕</button>
   </div>
@@ -253,7 +303,78 @@
    0. 콘텐츠 (임의 데이터) — 나중에 실제 프로젝트로 교체
    ===================================================================== */
 const PROJECTS = [
-  { title: "The Lookback",   client: "BO®S",          cat: "Web / Archive",   year: 2026, bg: "#ededed", fg: "#111",   accent: "#e8402f", layout: "stack" },
+  // 실제 작업 — video: 카드에서 반복 재생되는 짧은 영상, full: 상세 화면 영상, poster: 상세 화면 첫 장면, stills: 상세 화면 이미지
+  { title: "Lincoln Nautilus", client: "Lincoln", bg: "#1c1e2e", fg: "#ffffff", accent: "#b9a6e8", layout: "video",
+    video: "videos/lincoln-loop.mp4", full: "videos/lincoln.mp4", poster: "images/lincoln-1.jpg",
+    stills: ["images/lincoln-8.jpg", "images/lincoln-17.jpg", "images/lincoln-21.jpg", "images/lincoln-28.jpg"],
+    work: "Lincoln Nautilus Hybrid", year: 2026,
+    desc: "링컨 노틸러스 하이브리드의 생성형 AI 광고 영상입니다.\n전체 기획과 콘티 구성을 맡아 영상의 흐름과 비주얼 방향, 장면별 구성을 설계했습니다." },   // \n = 줄바꿈 위치
+  { title: "Samsung 9100 PRO — AI User", client: "Samsung", bg: "#14161c", fg: "#ffffff", accent: "#7aa8ff", layout: "video",
+    video: "videos/samsung-loop.mp4", full: "videos/samsung.mp4", poster: "images/samsung-0.6.jpg",
+    stills: ["images/samsung-3.jpg", "images/samsung-10.8.jpg", "images/samsung-15.5.jpg", "images/samsung-25.jpg"],
+    work: "Samsung 9100 PRO SSD", year: 2026,
+    desc: "삼성 9100 PRO SSD의 AI 유저편 생성형 AI 광고 영상입니다.\n전체 기획과 콘티 구성을 맡아 영상의 흐름과 비주얼 방향, 장면별 구성을 설계했습니다." },
+  { title: "Samsung 9100 PRO — Gamer", client: "Samsung", bg: "#120f1c", fg: "#ffffff", accent: "#b06bff", layout: "video",
+    video: "videos/samsung-gamer-loop.mp4", full: "videos/samsung-gamer.mp4", poster: "images/samsung-gamer-0.8.jpg",
+    stills: ["images/samsung-gamer-5.jpg", "images/samsung-gamer-12.5.jpg", "images/samsung-gamer-17.5.jpg", "images/samsung-gamer-22.5.jpg"],
+    work: "Samsung 9100 PRO SSD", year: 2026,
+    desc: "삼성 9100 PRO SSD의 게이머편 생성형 AI 광고 영상입니다.\n전체 기획과 콘티 구성을 맡아 영상의 흐름과 비주얼 방향, 장면별 구성을 설계했습니다." },
+  { title: "Binggrae The Danbaek", client: "Binggrae", bg: "#1a1226", fg: "#ffffff", accent: "#a77bff", layout: "video",
+    video: "videos/danbaek-loop.mp4", full: "videos/danbaek.mp4", poster: "images/danbaek-5.jpg",
+    stills: ["images/danbaek-3.5.jpg", "images/danbaek-9.5.jpg", "images/danbaek-12.5.jpg", "images/danbaek-15.5.jpg"],
+    work: "Binggrae The Danbaek Drink", year: 2026,
+    desc: "빙그레 더단백 드링크의 생성형 AI 광고 영상입니다.\n전체 기획과 콘티 구성을 맡아 영상의 흐름과 비주얼 방향, 장면별 구성을 설계했습니다." },
+  { title: "Daedong HX Series AI", client: "Daedong", bg: "#1a1614", fg: "#ffffff", accent: "#e8352b", layout: "video",
+    video: "videos/daedong-loop.mp4", full: "videos/daedong.mp4", poster: "images/daedong-12.5.jpg",
+    stills: ["images/daedong-5.jpg", "images/daedong-26.5.jpg", "images/daedong-30.jpg", "images/daedong-36.jpg"],
+    work: "Daedong AI Tractor HX", year: 2026,
+    desc: "대동 AI 트랙터 HX 시리즈의 생성형 AI 광고 영상입니다.\n전체 기획과 콘티 구성을 맡아 영상의 흐름과 비주얼 방향, 장면별 구성을 설계했습니다." },
+  { title: "Baskin Robbins Cheongdam OOH", client: "Baskin Robbins", bg: "#2a0f1a", fg: "#ffffff", accent: "#ff5aa0", layout: "video",
+    video: "videos/br-loop.mp4", full: "videos/br.mp4", poster: "images/br-21.jpg",
+    stills: ["images/br-5.7.jpg", "images/br-9.6.jpg", "images/br-13.4.jpg", "images/br-21.jpg"],
+    work: "Baskin Robbins Cheongdam", year: 2026,
+    desc: "배스킨라빈스 청담점 매장 벽면 스크린에 송출되는 생성형 AI 영상입니다.\n콘티 구성부터 실제 제작까지 맡아 장면 설계와 영상 제작 전반을 진행했습니다." },
+  { title: "Samlip Hoppang 80th Anniversary", client: "SPC Samlip", bg: "#1c1612", fg: "#ffffff", accent: "#e0b07a", layout: "video",
+    video: "videos/hoppang-loop.mp4", full: "videos/hoppang.mp4", poster: "images/hoppang-13.jpg",
+    stills: ["images/hoppang-8.7.jpg", "images/hoppang-26.2.jpg", "images/hoppang-32.7.jpg", "images/hoppang-36.jpg"],
+    work: "Samlip Hoppang 80th", year: 2025,
+    desc: "삼립호빵 80주년 기념 생성형 AI 광고 영상입니다.\n콘티 구성부터 실제 제작까지 맡아 장면 설계와 영상 제작 전반을 진행했습니다." },
+  { title: "Jung Jinwoo MV", client: "Jung Jinwoo", bg: "#141210", fg: "#ffffff", accent: "#d9b98a", layout: "vimeo",
+    vimeo: "1014794647", thumb: "images/mv-jj-thumb.jpg",
+    stills: ["videos/mv-jj-1.mp4", "videos/mv-jj-2.mp4", "videos/mv-jj-3.mp4", "videos/mv-jj-4.mp4"], stillAR: 2.335,   // Behance GIF → 짧은 반복 영상
+    work: "Jung Jinwoo", year: 2021,
+    desc: "가수 정진우의 뮤직비디오입니다.\n영상 기획부터 연출, 감독까지 전 과정을 맡아 콘셉트와 구성 설계, 촬영 현장 디렉팅, 최종 완성까지 작품의 방향을 이끌었습니다." },
+  { title: "BAMA MV", client: "BAMA", bg: "#1a1814", fg: "#ffffff", accent: "#e8dcc4", layout: "vimeo",
+    vimeo: "1014801824", thumb: "images/mv-bama-thumb.jpg",
+    stills: ["videos/mv-bama-1.mp4", "videos/mv-bama-2.mp4", "videos/mv-bama-3.mp4", "videos/mv-bama-4.mp4"], stillAR: 2.335,
+    work: "BAMA", year: 2021,
+    desc: "BAMA의 뮤직비디오입니다.\n영상 기획부터 연출, 감독까지 전 과정을 맡아 콘셉트와 스토리 구성, 촬영 현장 디렉팅, 최종 완성까지 작품의 방향을 이끌었습니다." },
+  { title: "Berluti × Prada SNS", client: "Berluti · Prada", bg: "#15110e", fg: "#ffffff", accent: "#c08a5a", layout: "image",
+    cardImg: { src: "images/vw-berluti-portrait.jpg", ia: 1.3857 },
+    hero: { src: "images/vw-berluti-portrait.jpg", ia: 1.3857 },
+    gallery: [
+      "gap", [{ src: "images/vw-berluti-ig.jpg", ia: 1.7531 }], "gap",
+      [{ src: "images/vw-berluti-ooh1-L.jpg", ia: 0.8073 }, { src: "images/vw-berluti-ooh1-R.jpg", ia: 1.2549 }],
+      [{ src: "images/vw-berluti-ooh2-L.jpg", ia: 0.9844 }, { src: "images/vw-berluti-ooh2-R.jpg", ia: 1.0030 }],
+      [{ src: "images/vw-prada-ooh-L.jpg", ia: 0.9629 }, { src: "images/vw-prada-ooh-R.jpg", ia: 0.9782 }]],   // 상세 화면: 아래로 이어지는 이미지 줄 (한 줄 = 높이를 맞춰 가로로 나란히)
+    work: "Berluti · Prada", year: 0,
+    desc: "패션 브랜드 Berluti와 Prada 홍보를 위한 배우 안효섭, 로운, 이재욱의 SNS 화보 콘텐츠입니다.\n2인 프로젝트에서 감독과 촬영, 편집을 맡아 인스타그램 게시물과 옥외 광고 목업까지 제작했습니다." },
+  { title: "RETAINS", client: "RETAINS", bg: "#2b2620", fg: "#ffffff", accent: "#b8a68e", layout: "image",
+    cardImg: { src: "images/vw-retains-model.jpg", ia: 1.7814 },
+    hero: { src: "images/vw-retains-model.jpg", ia: 1.7814 },
+    gallery: [
+      [{ src: "images/vw-retains-p1.jpg", ia: 0.9942 }, { src: "images/vw-retains-p2.jpg", ia: 0.9942 }, { src: "images/vw-retains-p3.jpg", ia: 1.0000 }],
+      [{ src: "images/vw-retains-discover.jpg", ia: 1.0015 }, { src: "images/vw-retains-condpanel.jpg", ia: 1.0000 }],
+      [{ src: "images/vw-retains-shampanel.jpg", ia: 1.0101 }, { src: "images/vw-retains-redefine.jpg", ia: 1.0078 }]],   // 상세 화면: 아래로 이어지는 이미지 줄 (한 줄 = 높이를 맞춰 가로로 나란히)
+    work: "RETAINS Shampoo", year: 0,
+    desc: "신생 샴푸 브랜드 RETAINS의 제품·모델 촬영과 웹사이트 이미지 비주얼 작업입니다.\n전 연령층을 타깃으로 한 클라이언트의 요구에 맞춰 자연스럽고 부담 없는 이미지 톤을 연출하는 데 중점을 두었고, 촬영부터 편집, 디자인까지 직접 진행했습니다." },
+  { title: "Album Cover Artwork", client: "Musicians", bg: "#16161a", fg: "#ffffff", accent: "#9c8cff", layout: "image",
+    cardImg: { src: "images/vw-album-spread.jpg", ia: 1.7817 },
+    hero: { src: "images/vw-album-spread.jpg", ia: 1.7817 },
+    gallery: [
+      "gap-s", [{ src: "images/vw-album-player.jpg", ia: 2.1090 }]],   // 상세 화면: 아래로 이어지는 이미지 줄 (한 줄 = 높이를 맞춰 가로로 나란히)
+    work: "Musician Album Covers", year: 0,
+    desc: "여러 뮤지션의 앨범 커버 아트워크 작업입니다.\n콘셉트 기획부터 촬영, 디자인까지 총괄해 아티스트의 음악성과 아이덴티티가 시각적으로 잘 드러나는 최종 아트워크를 제작하고 납품했습니다." },
   { title: "Book of Joy",    client: "Northwind Press",cat: "Editorial",       year: 2025, bg: "#8fb3a5", fg: "#10241d",accent: "#f4e9d0", layout: "editorial" },
   { title: "Nathan Riley",   client: "Nathan Riley",   cat: "Portfolio",       year: 2025, bg: "#c9c3b8", fg: "#1d1b18",accent: "#ffffff", layout: "grid" },
   { title: "Casa Lumen",     client: "Casa Lumen",     cat: "Hospitality",     year: 2025, bg: "#2c2a26", fg: "#efe6d6",accent: "#c7a46b", layout: "serif" },
@@ -264,25 +385,24 @@ const PROJECTS = [
   { title: "Field Notes",    client: "Field & Co.",    cat: "E-commerce",      year: 2023, bg: "#f2e8d5", fg: "#2a2118",accent: "#3d6b4f", layout: "grid" },
   { title: "Kinetic Type",   client: "Personal",       cat: "Experiment",      year: 2023, bg: "#1b2bff", fg: "#ffffff",accent: "#ff3df0", layout: "stack" },
   { title: "Soft Machines",  client: "SM Records",     cat: "Music",           year: 2022, bg: "#ffb7c5", fg: "#2b0d14",accent: "#2b0d14", layout: "poster" },
-  { title: "Atlas Index",    client: "Atlas",          cat: "Data / Web",      year: 2022, bg: "#e4e4e0", fg: "#121212",accent: "#ff5a1f", layout: "editorial" },
 ];
 /* 큰 분류 3개 — 이름·색은 여기서 바꾸세요 (group 번호로 프로젝트와 연결) */
 const CATEGORIES = [
-  { name: "Web",         color: "#5b8cff" },
-  { name: "3D · Motion", color: "#ff7a3d" },
-  { name: "Branding",    color: "#3ddc97" },
+  { name: "AI Advertising", color: "#5b8cff" },
+  { name: "Film",           color: "#ff7a3d" },
+  { name: "Visual Works",   color: "#3ddc97" },
 ];
 // 프로젝트 → 카테고리 (여기에 없는 프로젝트는 화면에 안 나옴)
-const GROUP = { "The Lookback": 0, "Nathan Riley": 0, "Gil Studio": 0, "Atlas Index": 0, "Field Notes": 0,
-                "Orbit Mars": 1, "Kinetic Type": 1,
-                "Book of Joy": 2, "Discoveryland": 2, "Griflan": 2 };
+const GROUP = { "Samsung 9100 PRO — AI User": 0, "Samsung 9100 PRO — Gamer": 0, "Binggrae The Danbaek": 0, "Lincoln Nautilus": 0, "Daedong HX Series AI": 0, "Baskin Robbins Cheongdam OOH": 0, "Samlip Hoppang 80th Anniversary": 0,
+                "Jung Jinwoo MV": 1, "BAMA MV": 1,
+                "Berluti × Prada SNS": 2, "RETAINS": 2, "Album Cover Artwork": 2 };
 for (let i = PROJECTS.length - 1; i >= 0; i--) if (!(PROJECTS[i].title in GROUP)) PROJECTS.splice(i, 1);
 PROJECTS.forEach(p => p.group = GROUP[p.title]);
 PROJECTS.sort((a, b) => a.group - b.group);
 PROJECTS.forEach(p => {
   p.slug = p.title.toLowerCase().replace(/[^a-z0-9]+/g, "-");
-  p.tags = [p.cat, String(p.year)];
-  p.desc = `${p.client} 프로젝트 설명이 들어갈 자리입니다. 어떤 문제를 풀었는지, 어떤 접근을 했는지, 결과가 어땠는지 두세 문장으로 적어주세요.`;
+  // 상세 화면 태그 = [카테고리, 작업 제목(work), 연도] — openProject에서 조립
+  p.desc = p.desc || `${p.client} 프로젝트 설명이 들어갈 자리입니다. 어떤 문제를 풀었는지, 어떤 접근을 했는지, 결과가 어땠는지 두세 문장으로 적어주세요.`;
 });
 
 /* =====================================================================
@@ -420,6 +540,19 @@ function drawCardBase(p, i) {   // 라벨 없는 카드 그림 (상세 시트의
   }
   return c;
 }
+// 이미지 일부(crop = [x0, y0, x1, y1], 0~1)를 원하는 화면비로 가운데 맞춤
+function fitCrop(o, ar) {
+  let [x0, y0, x1, y1] = o.crop || [0, 0, 1, 1]; const w = x1 - x0, h = y1 - y0, cur = (w * o.ia) / h;
+  if (ar) { if (cur > ar) { const nw = h * ar / o.ia; x0 += (w - nw) / 2; x1 = x0 + nw; } else { const nh = w * o.ia / ar; y0 += (h - nh) / 2; y1 = y0 + nh; } }
+  return [x0, y0, x1, y1];
+}
+function cropAR(o) { const [x0, y0, x1, y1] = o.crop || [0, 0, 1, 1]; return (x1 - x0) * o.ia / (y1 - y0); }
+function cropDiv(o, ar) {   // 잘라낸 영역만 보이는 div (배경 이미지)
+  const [x0, y0, x1, y1] = fitCrop(o, ar), w = x1 - x0, h = y1 - y0, d = document.createElement("div");
+  d.style.cssText = `width:100%;height:100%;background:#e6e6e6 url("${o.src}") no-repeat;background-size:${100 / w}% ${100 / h}%;` +
+    `background-position:${w < 1 ? x0 / (1 - w) * 100 : 0}% ${h < 1 ? y0 / (1 - h) * 100 : 0}%`;
+  return d;
+}
 function withLabel(base, p) {   // 카드 안 제목 + 화살표 버튼
   const c = document.createElement("canvas"); c.width = base.width; c.height = base.height;
   const g = c.getContext("2d"), W = c.width, H = c.height;
@@ -543,6 +676,7 @@ void main() {
   gl_Position = vec4(mix(vec3(f, 0.0), c.xyz / c.w, uCyl), 1.0);
 }`, `
 uniform sampler2D uTex;
+uniform sampler2D uLab; uniform float uLabOn; uniform vec4 uUvXf;   // 영상 카드: 제목 레이어 / 영상 화면비 맞춤(cover)
 uniform float uHover, uReveal, uShade, uWhite, uAlpha, uAspect, uCorner;
 uniform vec3 uCam;
 in vec2 vUv; in float vFront; in vec3 vN, vW; in float vSx; out vec4 o;
@@ -560,7 +694,8 @@ void main() {
   if (alpha < 0.01) discard;
   // 호버 시 살짝 줌인
   vec2 uv = (vUv - 0.5) * (1.0 - uHover * 0.05) + 0.5;
-  vec3 col = texture(uTex, uv).rgb;
+  vec3 col = texture(uTex, uv * uUvXf.xy + uUvXf.zw).rgb;
+  if (uLabOn > 0.5) { vec4 lb = texture(uLab, uv); col = mix(col, lb.rgb, lb.a); }
   // 원통 옆/뒤로 갈수록 어둡게
   float light = smoothstep(-0.15, 0.95, vFront);
   col *= mix(1.0, mix(0.08, 1.0, light), uShade);
@@ -811,12 +946,87 @@ rows.forEach(row => {
     cards.push(c); return c;
   });
 });
+const videoTex = [];   // 카드 안에서 재생되는 영상들
+function coverDraw(g, src, sw, sh, W, H) {   // object-fit: cover
+  const s = Math.max(W / sw, H / sh), w = sw * s, h = sh * s;
+  g.drawImage(src, (W - w) / 2, (H - h) / 2, w, h);
+}
 function buildTextures() {
   cards.forEach(c => {
-    if (!texCache[c.i]) { const b2 = drawCardBase(c.p, c.i); texCache[c.i] = { b2, tex: texture(withLabel(b2, c.p)) }; }
+    if (!texCache[c.i]) {
+      if (c.p.video) {
+        const cv = document.createElement("canvas"); cv.width = TEX_W; cv.height = TEX_H;
+        const g = cv.getContext("2d"); g.fillStyle = c.p.bg; g.fillRect(0, 0, TEX_W, TEX_H);
+        const blankC = document.createElement("canvas"); blankC.width = TEX_W; blankC.height = TEX_H;
+        { const bg = blankC.getContext("2d"), gr = bg.createLinearGradient(0, TEX_H * .55, 0, TEX_H);   // 영상 위 제목이 잘 읽히도록 아래쪽만 살짝 어둡게
+          gr.addColorStop(0, "rgba(0,0,0,0)"); gr.addColorStop(1, "rgba(0,0,0,.55)"); bg.fillStyle = gr; bg.fillRect(0, 0, TEX_W, TEX_H); }
+        const labTex = texture(withLabel(blankC, c.p));                  // 제목·화살표만 있는 투명 레이어 (한 번만 만듦)
+        const v = document.createElement("video");
+        Object.assign(v, { src: c.p.video, muted: true, loop: true, playsInline: true, autoplay: true, preload: "auto" });
+        v.setAttribute("muted", ""); v.setAttribute("playsinline", "");
+        // 화면 밖 영상은 브라우저가 절전으로 멈출 수 있어서, 보이지 않게 문서에 붙여 둠
+        v.style.cssText = "position:fixed;left:0;top:0;width:2px;height:2px;opacity:.01;pointer-events:none;z-index:-1";
+        document.body.appendChild(v);
+        v.play().catch(() => {});
+        const tex = texture(cv);
+        gl.bindTexture(gl.TEXTURE_2D, tex); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        const entry = { b2: cv, tex, labTex, v, uvx: [1, 1, 0, 0], fresh: false };
+        v.addEventListener("loadedmetadata", () => {   // 영상 화면비 → 카드 화면비로 가운데 크롭
+          const ar = v.videoWidth / v.videoHeight, ca = TEX_W / TEX_H;
+          entry.uvx = ar > ca ? [ca / ar, 1, (1 - ca / ar) / 2, 0] : [1, ar / ca, 0, (1 - ar / ca) / 2];
+        });
+        // 새 프레임이 나올 때만 표시 (지원 안 하는 브라우저는 매 프레임 확인)
+        if (v.requestVideoFrameCallback) { const onF = () => { entry.fresh = true; v.requestVideoFrameCallback(onF); }; v.requestVideoFrameCallback(onF); }
+        // 상세 화면 첫 장면 (카드가 날아갈 때 쓰는 그림)
+        const poster = new Image(); poster.src = c.p.poster || "";
+        poster.onload = () => { const pc = document.createElement("canvas"); pc.width = poster.naturalWidth; pc.height = poster.naturalHeight; pc.getContext("2d").drawImage(poster, 0, 0); entry.posterC = pc; };
+        texCache[c.i] = entry; videoTex.push(entry);
+      } else if (c.p.thumb || c.p.cardImg) {
+        // Vimeo 썸네일 카드: 먼저 배경색 + 제목, 이미지가 오면 가운데 크롭해서 다시 그림
+        const b2 = document.createElement("canvas"); b2.width = TEX_W; b2.height = TEX_H;
+        const g = b2.getContext("2d"); g.fillStyle = c.p.bg; g.fillRect(0, 0, TEX_W, TEX_H);
+        const entry = { b2, tex: texture(withLabel(b2, c.p)) }; texCache[c.i] = entry;
+        const im = new Image(); im.crossOrigin = "anonymous";
+        im.onload = () => {
+          if (c.p.cardImg) {
+            const [x0, y0, x1, y1] = fitCrop(c.p.cardImg, TEX_W / TEX_H), N = [im.naturalWidth, im.naturalHeight];
+            g.drawImage(im, x0 * N[0], y0 * N[1], (x1 - x0) * N[0], (y1 - y0) * N[1], 0, 0, TEX_W, TEX_H);
+          } else {
+          const [y0, y1] = c.p.crop || [0, 1], sy = im.naturalHeight * y0, sh = im.naturalHeight * (y1 - y0);
+          const ca = TEX_W / TEX_H; let sw = im.naturalWidth, sx = 0, ch = sh, cy = sy;
+          if (sw / sh > ca) { sw = sh * ca; sx = (im.naturalWidth - sw) / 2; } else { ch = sw / ca; cy = sy + (sh - ch) / 2; }
+          g.drawImage(im, sx, cy, sw, ch, 0, 0, TEX_W, TEX_H);
+          }
+          const gr = g.createLinearGradient(0, TEX_H * .55, 0, TEX_H); gr.addColorStop(0, "rgba(0,0,0,0)"); gr.addColorStop(1, "rgba(0,0,0,.55)");
+          g.fillStyle = gr; g.fillRect(0, 0, TEX_W, TEX_H);
+          gl.bindTexture(gl.TEXTURE_2D, entry.tex); gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, withLabel(b2, c.p)); gl.generateMipmap(gl.TEXTURE_2D);
+          if (entry.fly) { gl.deleteTexture(entry.fly); entry.fly = null; cards.forEach(k => { if (k.i === c.i) k.flyTex = null; }); }
+        };
+        im.src = c.p.thumb || c.p.cardImg.src;
+      } else {
+        const b2 = drawCardBase(c.p, c.i); texCache[c.i] = { b2, tex: texture(withLabel(b2, c.p)) };
+      }
+    }
     c.base2d = texCache[c.i].b2; c.tex = texCache[c.i].tex;
   });
 }
+function updateVideoTextures() {   // 새 프레임이 있을 때만, 영상 화면을 그대로 텍스처로 (캔버스 거치지 않음)
+  for (const e of videoTex) {
+    const v = e.v;
+    if (v.readyState < 2) continue;
+    if (v.requestVideoFrameCallback) { if (!e.fresh) continue; e.fresh = false; }
+    else { if (v.currentTime === e.last) continue; e.last = v.currentTime; }
+    gl.bindTexture(gl.TEXTURE_2D, e.tex);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, v);
+  }
+}
+// 감시: 탭이 보이는데 영상이 멈춰 있으면 다시 재생
+setInterval(() => { if (!document.hidden) videoTex.forEach(e => { if (e.v.paused) e.v.play().catch(() => {}); }); }, 1000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) videoTex.forEach(e => e.v.play().catch(() => {})); });
+// 모바일 등에서 자동재생이 막혔을 때: 첫 터치/클릭에 재생
+addEventListener("pointerdown", () => videoTex.forEach(e => e.v.paused && e.v.play().catch(() => {})), { once: true });
 const angleOf = c => c.base + c.row.current;
 const rowPoint = (row, a, dy = 0) => [row.x + Math.sin(a) * row.R, row.y + dy, row.z + Math.cos(a) * row.R];
 function frontCard(row) {   // 줄에서 정면에 가장 가까운 카드
@@ -991,24 +1201,80 @@ document.addEventListener("pointerleave", () => tween(state.ball, "p", 0, { dur:
    ===================================================================== */
 const sheetEl = document.getElementById("sheet"), stackEl = document.getElementById("sStack"), ringArc = document.getElementById("ringArc");
 const sheetFx = { p: 0, dim: 0 };
+const scrollEl = document.getElementById("sScroll");
+const isGallery = () => sheetEl.classList.contains("gallery");
+const scrollTarget = () => isGallery() ? scrollEl : stackEl;   // 갤러리형은 시트 전체, 나머지는 오른쪽 스틸 열이 스크롤
+function colMax() { return isGallery() ? Math.max(0, scrollEl.scrollHeight - sheetEl.clientHeight) : Math.max(0, stackEl.scrollHeight - sheetEl.querySelector(".col").clientHeight); }
 function openProject(c) {
   if (state.mode !== "home" || state.flight) return;
   state.mode = "project";
   document.getElementById("sTitle").textContent = c.p.title;
   document.getElementById("sDesc").textContent = c.p.desc;
-  document.getElementById("sTags").innerHTML = [c.row.cat.name, ...c.p.tags].map(t => `<span class="pill tag">${t}</span>`).join("");
+  // 상세 화면 구성 (통일): 제목 = 영어, 설명 = 한글, 태그 = 카테고리 / 작업 제목 / 연도
+  document.getElementById("sTags").innerHTML = [c.row.cat.name, c.p.work || c.p.title, c.p.year].filter(Boolean).map(t => `<span class="pill tag">${t}</span>`).join("");
   stackEl.innerHTML = "";
-  const hero = document.createElement("div"); hero.className = "slot hero"; hero.style.aspectRatio = CARD_W / CARD_H;
-  const hc = document.createElement("canvas"); hc.width = c.base2d.width; hc.height = c.base2d.height; hc.getContext("2d").drawImage(c.base2d, 0, 0);
-  hero.appendChild(hc); stackEl.appendChild(hero);
-  for (let k = 0; k < 4; k++) { const s = document.createElement("div"); s.className = "slot"; const cv = drawDetail(c.p, c.i, k); s.style.aspectRatio = cv.width / cv.height; s.appendChild(cv); stackEl.appendChild(s); }
-  state.col.t = state.col.a = 0; stackEl.style.transform = "";
+  const hero = document.createElement("div"); hero.className = "slot hero";
+  if (c.p.full) {
+    // 상세 영상: 소리 끈 채 자동 재생, 버튼으로 소리 켜기 / 영상 클릭으로 일시정지
+    // 메인 영상: 자동재생 없이 첫 장면 + 재생 버튼 → 누르면 소리와 함께 재생, 끝나면 다시 버튼
+    hero.style.aspectRatio = 16 / 9; hero.style.setProperty("--ar", 16 / 9);
+    const v = document.createElement("video");
+    Object.assign(v, { src: c.p.full, playsInline: true, preload: "metadata" });
+    v.setAttribute("playsinline", ""); if (c.p.poster) v.poster = c.p.poster;
+    const btn = document.createElement("button"); btn.className = "play"; btn.type = "button"; btn.setAttribute("aria-label", "Play film");
+    btn.innerHTML = `<i></i><span>Play film</span>`;
+    v.addEventListener("loadedmetadata", () => { const d = Math.round(v.duration); btn.querySelector("span").textContent = `Play film · ${Math.floor(d / 60)}:${String(d % 60).padStart(2, "0")}`; });
+    btn.addEventListener("click", e => { e.stopPropagation(); v.muted = false; v.controls = true; v.play(); btn.classList.add("off"); });
+    v.addEventListener("ended", () => { v.controls = false; v.currentTime = 0; btn.classList.remove("off"); });
+    hero.append(v, btn);
+  } else if (c.p.hero && c.p.gallery) {
+    hero.style.aspectRatio = c.p.hero.ia; hero.style.setProperty("--ar", c.p.hero.ia);
+    const im = new Image(); im.src = c.p.hero.src; im.alt = c.p.title; hero.appendChild(im);
+  } else if (c.p.hero) {
+    hero.style.aspectRatio = 16 / 9; hero.style.setProperty("--ar", 16 / 9);
+    hero.appendChild(cropDiv(c.p.hero, 16 / 9));
+  } else if (c.p.vimeo) {
+    // Vimeo 원본 플레이어 (원본 화질 스트리밍)
+    hero.style.aspectRatio = 16 / 9; hero.style.setProperty("--ar", 16 / 9);
+    const f = document.createElement("iframe");
+    f.src = `https://player.vimeo.com/video/${c.p.vimeo}?title=0&byline=0&portrait=0&dnt=1&color=ffffff`;
+    f.allow = "autoplay; fullscreen; picture-in-picture"; f.allowFullscreen = true; f.title = c.p.title;
+    f.style.cssText = "position:absolute;inset:0;width:100%;height:100%;border:0;background:#000";
+    hero.appendChild(f);
+  } else {
+    hero.style.aspectRatio = CARD_W / CARD_H; hero.style.setProperty("--ar", CARD_W / CARD_H);
+    const hc = document.createElement("canvas"); hc.width = c.base2d.width; hc.height = c.base2d.height; hc.getContext("2d").drawImage(c.base2d, 0, 0);
+    hero.appendChild(hc);
+  }
+  const mainEl = document.getElementById("sMain"); mainEl.innerHTML = ""; mainEl.appendChild(hero);
+  sheetEl.classList.toggle("gallery", !!c.p.gallery);
+  if (c.p.gallery) c.p.gallery.forEach((row, ri) => {   // 한 줄 안의 이미지는 높이를 맞추고 가로 폭을 나눠 가짐
+    if (typeof row === "string") { const g = document.createElement("div"); g.className = "ggap " + row; mainEl.appendChild(g); return; }   // "gap" / "gap-s" = 묶음 사이 여백
+    const r = document.createElement("div"); r.className = "grow-row";
+    row.forEach(o => { const s = document.createElement("div"); s.className = "slot"; s.style.flexGrow = o.ia; s.style.aspectRatio = o.ia;
+      s.style.transitionDelay = (0.05 + ri * 0.06) + "s";
+      const im = new Image(); im.src = o.src; im.alt = c.p.title; s.appendChild(im); r.appendChild(s); });
+    mainEl.appendChild(r);
+  });
+  if (c.p.gallery) {} else if (c.p.stills) for (const src of c.p.stills) {
+    const s = document.createElement("div"); s.className = "slot";
+    if (typeof src === "object") { s.style.aspectRatio = cropAR(src); s.appendChild(cropDiv(src)); stackEl.appendChild(s); continue; }
+    s.style.aspectRatio = c.p.stillAR || 16 / 9;
+    if (/^data:video|\.mp4$/.test(src)) {   // 움직이는 스틸 (짧은 반복 영상)
+      const v = document.createElement("video"); Object.assign(v, { src, muted: true, loop: true, autoplay: true, playsInline: true });
+      v.setAttribute("muted", ""); v.setAttribute("playsinline", ""); s.appendChild(v); stackEl.appendChild(s); v.play().catch(() => {}); continue;
+    }
+    const im = new Image(); im.src = src; im.alt = c.p.title; im.loading = "lazy"; s.appendChild(im); stackEl.appendChild(s);
+  } else if (!c.p.vimeo && !c.p.gallery) for (let k = 0; k < 4; k++) { const s = document.createElement("div"); s.className = "slot"; const cv = drawDetail(c.p, c.i, k); s.style.aspectRatio = cv.width / cv.height; s.appendChild(cv); stackEl.appendChild(s); }
+  sheetEl.classList.toggle("nostills", !!c.p.vimeo && !c.p.stills);   // 스틸 없는 작업: 오른쪽 열에 설명
+  state.col.t = state.col.a = 0; stackEl.style.transform = ""; scrollEl.style.transform = "";
   sheetEl.classList.add("open"); sheetEl.setAttribute("aria-hidden", "false");
   document.getElementById("chrome").classList.add("hide-nav");
   history.pushState({ slug: c.p.slug }, "", "#/projects/" + c.p.slug);
   requestAnimationFrame(() => {
-    state.col.max = Math.max(0, stackEl.scrollHeight - sheetEl.querySelector(".col").clientHeight);
-    if (!c.flyTex) c.flyTex = texCache[c.i].fly || (texCache[c.i].fly = texture(c.base2d));
+    state.col.max = colMax();
+    const tc = texCache[c.i];
+    if (!c.flyTex) c.flyTex = tc.fly || (tc.fly = texture(tc.posterC || c.base2d));
     state.flight = { card: c, from: cardScreenRect(c), p: 0 };
     tween(state.flight, "p", 1, { dur: 1.1, e: ease.expoInOut, done: () => { hero.classList.add("landed"); state.flight.landed = true; } });
     tween(sheetFx, "p", 1, { dur: 1.1, e: ease.expoInOut });
@@ -1018,8 +1284,11 @@ function openProject(c) {
 function closeProject() {
   if (state.mode !== "project" || !state.flight) return;
   const f = state.flight;
-  sheetEl.classList.remove("shown"); stackEl.querySelector(".hero").classList.remove("landed");
+  sheetEl.classList.remove("shown"); sheetEl.querySelector(".hero").classList.remove("landed");
+  sheetEl.querySelectorAll("video").forEach(v => v.pause());
+  sheetEl.querySelectorAll("iframe").forEach(f => f.remove());   // Vimeo 재생 중이면 소리 끄기
   f.landed = false; f.closing = true; f.from = cardScreenRect(f.card);
+  state.col.t = state.col.a = 0; scrollEl.style.transform = ""; stackEl.style.transform = "";
   tween(f, "p", 0, { dur: 1, e: ease.expoInOut, done: () => {
     state.flight = null; state.mode = "home"; rows.forEach(r => r.idle = 0);
     sheetEl.classList.remove("open"); sheetEl.setAttribute("aria-hidden", "true");
@@ -1060,7 +1329,7 @@ addEventListener("click", e => {    // 원 밖 클릭 → 닫기
 const listEl = document.getElementById("list");
 document.getElementById("listItems").innerHTML = rows.map(row =>
   `<li class="cathead"><span class="label" style="color:${row.cat.color}">${row.cat.name}</span></li>` +
-  PROJECTS.map((p, i) => p.group === row.g ? `<li data-i="${i}"><span class="n">${p.title}</span><span class="label">${p.tags.join(" · ")}</span></li>` : "").join("")
+  PROJECTS.map((p, i) => p.group === row.g ? `<li data-i="${i}"><span class="n">${p.title}</span><span class="label">${[p.work || p.client, p.year].filter(Boolean).join(" · ")}</span></li>` : "").join("")
 ).join("");
 listEl.addEventListener("click", e => { const li = e.target.closest("li[data-i]"); setMode("featured"); if (li) goToProject(+li.dataset.i); });
 document.querySelectorAll(".mode a").forEach(a => a.addEventListener("click", e => { e.preventDefault(); setMode(a.dataset.mode); }));
@@ -1181,7 +1450,7 @@ function resize() {
   state.topVP = mul(camera.viewProj, new Float32Array([1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1, 0, 0, 2 * tm, 0, 1]));
   state.topEdge = (view.wh - project(camera.viewProj, rowPoint(rows[0], 0, -CARD_H * rows[0].s / 2 - .08))[1]) * (sceneRT.h / view.wh);
   trailH = Math.max(1, Math.round(trailW * view.wh / view.ww)); trailA.resize(trailW, trailH); trailB.resize(trailW, trailH); trailFresh = false;
-  if (state.mode === "project") state.col.max = Math.max(0, stackEl.scrollHeight - sheetEl.querySelector(".col").clientHeight);
+  if (state.mode === "project") state.col.max = colMax();
 }
 addEventListener("resize", resize);
 addEventListener("resize", () => { if (!intro.done) buildIntro(); });
@@ -1204,6 +1473,10 @@ function drawCard(vp, tex, { card = null, cylP = 1, rect = null, hover = 0, shad
   gl.uniform1f(u.uHover, hover); gl.uniform1f(u.uReveal, reveal); gl.uniform1f(u.uShade, shade);
   gl.uniform3fv(u.uCam, camera.pos);
   gl.uniform1f(u.uWhite, white); gl.uniform1f(u.uAlpha, alpha); gl.uniform1f(u.uAspect, aspect); gl.uniform1f(u.uCorner, corner);
+  // 영상 카드면 영상 화면을 직접 쓰고, 제목은 별도 레이어로 얹음
+  const ve = card && texCache[card.i] && texCache[card.i].v && tex === texCache[card.i].tex ? texCache[card.i] : null;
+  gl.uniform4fv(u.uUvXf, ve ? ve.uvx : [1, 1, 0, 0]); gl.uniform1f(u.uLabOn, ve ? 1 : 0);
+  gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, ve ? ve.labTex : blank); gl.uniform1i(u.uLab, 1);
   gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tex); gl.uniform1i(u.uTex, 0);
   cardGeo.draw();
 }
@@ -1272,7 +1545,7 @@ function render(dt) {
     const pr = { left: lerp(from.left, panel.left, e), top: lerp(from.top, panel.top, e), width: lerp(from.width, panel.width, e), height: lerp(from.height, panel.height, e) };
     drawCard(camera.viewProj, blank, { rect: pr, shade: 0, white: 1, alpha: Math.min(1, e * 4), aspect: pr.width / pr.height, corner: lerp(.07, 15 / Math.max(pr.height, 1), e), reveal: 1 });
     if (!f.landed) {
-      const hr = stackEl.querySelector(".hero").getBoundingClientRect(), p = f.p;
+      const hr = sheetEl.querySelector(".hero").getBoundingClientRect(), p = f.p;
       const r = { left: lerp(from.left, hr.left, p), top: lerp(from.top, hr.top, p), width: lerp(from.width, hr.width, p), height: lerp(from.height, hr.height, p) };
       drawCard(camera.viewProj, p > .5 ? f.card.flyTex : f.card.tex, { card: f.card, cylP: 1 - p, rect: r, shade: 1 - p, corner: lerp(.16 / CARD_H, 0, p), reveal: 1 });
     }
@@ -1453,9 +1726,11 @@ function tick(now) {
   if (state.mode === "project" && state.flight && !state.flight.closing && state.flight.p > .6) sheetEl.classList.add("shown");
   if (state.mode === "project" && !view.small) {
     state.col.a = damp(state.col.a, state.col.t, COL_EASE, Math.min(dt * 60, 2));
-    stackEl.style.transform = `translate3d(0,${-state.col.a}px,0)`;
+    if (isGallery()) { state.col.max = colMax(); state.col.t = Math.min(state.col.t, state.col.max); }
+    scrollTarget().style.transform = `translate3d(0,${-state.col.a}px,0)`;
     ringArc.setAttribute("stroke-dashoffset", 69.1 * (1 - (state.col.max ? state.col.a / state.col.max : 0)));
   }
+  updateVideoTextures();
   render(dt);
 }
 
